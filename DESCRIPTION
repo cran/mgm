@@ -1,0 +1,16 @@
+Package: mgm
+Type: Package
+Title: Estimating Mixed Graphical Models
+Version: 1.1-2
+Date: 2015-09-02
+Author: Jonas Haslbeck
+Maintainer: Jonas Haslbeck  <jonashaslbeck@gmail.com>
+Description: Functions to estimate and sample from a mixed Graphical model.
+License: GPL (>= 2)
+Imports: Rcpp (>= 0.11.4), matrixcalc, glmnet
+LinkingTo: Rcpp
+LazyData: true
+Packaged: 2015-09-02 22:33:24 UTC; jo
+NeedsCompilation: yes
+Repository: CRAN
+Date/Publication: 2015-09-03 12:20:18
