@@ -1,16 +1,17 @@
 Package: mgm
 Type: Package
 Title: Estimating Mixed Graphical Models
-Version: 1.1-2
-Date: 2015-09-02
+Version: 1.1-3
+Date: 2016-01-06
 Author: Jonas Haslbeck
 Maintainer: Jonas Haslbeck  <jonashaslbeck@gmail.com>
-Description: Functions to estimate and sample from a mixed Graphical model.
+Description: Estimation of Mixed Graphical model using L1-regularized neighborhood regression.
+URL: http://arxiv.org/abs/1510.06871
 License: GPL (>= 2)
 Imports: Rcpp (>= 0.11.4), matrixcalc, glmnet
 LinkingTo: Rcpp
 LazyData: true
-Packaged: 2015-09-02 22:33:24 UTC; jo
+Packaged: 2016-01-06 17:42:51 UTC; jo
 NeedsCompilation: yes
 Repository: CRAN
-Date/Publication: 2015-09-03 12:20:18
+Date/Publication: 2016-01-06 20:29:39

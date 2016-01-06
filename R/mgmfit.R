@@ -6,14 +6,13 @@ mgmfit <- function(
   lambda.sel="EBIC", #method for penalization parameter (lambda) -selection 
   folds=10, #folds in case CV is used for lambda selection
   gam=.25, #tuning parameter for EBIC, in case EBIC is used for lambda selection
-  d=1, #maximal degree of the true graph
+  d=2, #maximal degree of the true graph
   rule.reg="AND", #parameter-aggregation of categorical variables
   rule.cat="OR",  #either "OR"- conditional independence; or matrix that specifies costumized rules
   pbar = TRUE # shows a progress bar if TRUE
 )
 
 {
-  
   
   dev_glmnet <- function (object, ...) 
   {
@@ -32,10 +31,9 @@ mgmfit <- function(
   nNode <- ncol(data)
   
   # step 2: prepare data
-  #data[,type!="c" & type!="p"] <- scale(data[,type!="c" & type!="p"]) #standardize continuous variables
   data <- as.data.frame(data) #necessary for formula input
   colnames(data) <- paste("V",1:nNode, sep="") #necessary for formula input
-  
+  data[,type=="g"] <- scale(data[,type=="g"]) #scale all gaussians to N(0,1)
   
   #compare entered and empirical levels  
   emp_lev <- numeric(nNode) + 1
@@ -87,6 +85,7 @@ mgmfit <- function(
   # step 4: estimation
   for(v in seq_len(nNode))
   {
+    
     # step 4.1: compute design matrix (adding interactions as a function of d)
     if(d>(nNode-1)) {
       stop("Order of interactions can be maximal the number of predictors!")
@@ -104,7 +103,6 @@ mgmfit <- function(
     } else if(type[v]=="p") {
       fam <- "poisson"
     }
-    
     
     # step 4.2: select alpha & call glmnet
     
@@ -238,7 +236,7 @@ mgmfit <- function(
       out <- numeric(0)
       for(i in 1:nNode)
       {
-        out.n <- mean(abs(x[dummy.ind==i])) #without abs, this keeps the sign; but because of the glmnet parameterization in categoricals it burries nonzero coefficients in the binary case
+        out.n <- mean(abs(x[dummy.ind==i])) # this burries the sign; however it makes no sense in the categorical case, for continuous it can be recovered via the model.par.mat in the output
         if(rule=="AND") {
           out.n <- out.n * (sum(x[dummy.ind==i]==0)<1) #the second term = 0 when not all coefficients are nonzero
         }
@@ -249,6 +247,7 @@ mgmfit <- function(
     
     # averaging over rows
     m.p.m.2 <-  apply(m.p.m.1, 2, function(x) {
+      
       out <- numeric()
       for(i in 1:nNode)
       {
@@ -261,6 +260,8 @@ mgmfit <- function(
       }
       out <- matrix(out, ncol=1)
     })
+    
+    return(m.p.m.2)
     
   } #end of function
   

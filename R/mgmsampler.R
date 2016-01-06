@@ -6,24 +6,38 @@ mgmsampler <- function(
   graph, #graph structure
   thresh, #thresholds, for every node (& category)
   parmatrix = NA, #possibility to provide costum function to create model parameter matrix
-  nIter = 1000 #number of samples for each node
+  nIter = 250 #number of samples for each node
 ){
   
   lev <- as.numeric(lev)
   # some checks on the input
-  stopifnot(isSymmetric(graph))
-  stopifnot(length(type)==nrow(graph))
   stopifnot(length(type)==length(lev))
-  stopifnot(sum(diag(graph)!=0)==0)
+  if(is.na(parmatrix)==TRUE){
+    stopifnot(isSymmetric(graph))
+    stopifnot(length(type)==nrow(graph))
+    stopifnot(sum(diag(graph)!=0)==0)
+  }
   
-  # check: is the within-gaussian covariance matrix positive definite?
-  g_cov <- graph[type=="g",type=="g"] #select within-gaussian cov matrix
-  
-  if(length(g_cov)>1)
-  {
-    g_covm <- matrix(g_cov, nrow(g_cov), ncol(g_cov))
-    diag(g_covm) <- 1 # we are working with unit variance
-    stopifnot(is.positive.definite(g_covm))
+  # in case we have more than 1 gaussian variable in the graph, 
+  # we have to rescale the conditional variances to 1
+  if(sum("g"==type)>1) {
+    
+    # get the gaussian subgraph
+    graph.g <- graph[type=="g", type=="g"]
+    
+    # all parameters have to be negative
+    graph.g <- -abs(graph.g)
+    
+    # define diagonal in inverse covariance matrix
+    diag(graph.g) <- - (colSums(graph.g) - rep(.01, sum(type=="g"))) 
+    
+    #rescale to unit conditional variance
+    graph.g.re <- round(cov2cor(graph.g),10) 
+    
+    stopifnot(is.positive.definite(graph.g.re)) #check
+    graph.g.re.e <- graph.g.re; diag(graph.g.re.e) <- 0 #zero diagonal to put it back in the graph
+    graph[type=="g", type=="g"] <- graph.g.re.e #put back in the graph
+    
   }
   
   if(is.na(parmatrix)==TRUE) {
@@ -37,7 +51,6 @@ mgmsampler <- function(
   Data <- matrix(0, n, nNodes)  # create empty data matrix
   inde <- as.numeric(colnames(graphe))
   colnames(graphe) <- rownames(graphe) <- NULL
-  
   
   #transform thresh into a matrix (C doesnt take lists)
   thresh_m <- matrix(0, nrow=length(thresh), ncol=max(lev))
