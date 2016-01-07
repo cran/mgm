@@ -1,4 +1,4 @@
-054fa96358c152ddea768238779641cb *DESCRIPTION
+9c543b11536572fd42738e260fa852f8 *DESCRIPTION
 214a03b618594be3bbb6d896f49937ad *NAMESPACE
 c7fd1e3e2734992bd6bb423f400a69ef *R/RcppExports.R
 9924899465c59b431378317aa2012a13 *R/confusion.R
@@ -12,9 +12,9 @@ bf531796bca215b61ab67f44cdc1e0da *R/print.mgm.R
 4caed947310e77bff753cde88dd63dba *man/confusion.Rd
 53fdd9776cff0ca5009ad1520aca0b1a *man/data_mixed.Rd
 050ad321292712a2fae3582c6dc6ef63 *man/data_mixed2.Rd
-b8c4ec817e7d4f506fba7a67ecd11404 *man/mgm-package.Rd
+d353cb2656b19aac5c1338094d727bbb *man/mgm-package.Rd
 6ea095b7a1b1b38df45e781c25ac69c1 *man/mgmfit.Rd
 d4dec0620edf6f74cd42bfee0dfe38ff *man/mgmsampler.Rd
 6ad71f281bce188b60b43ce6197b69a2 *man/print.mgm.Rd
 e3a93a2db92ae353325c445184cbaf1c *src/RcppExports.cpp
-2827632e7745ec28353f159e6d7c5cc8 *src/mMRFSampler_Ccore.cpp
+98778ae16f02a50b08ac49fc9518c863 *src/mMRFSampler_Ccore.cpp

@@ -243,8 +243,13 @@ NumericMatrix mMRFCsampler(NumericMatrix Data, int n, int nNodes, NumericVector 
           double natpar;
           natpar = thresh_m(node,0) + sum(potcat) + sum(potcon);
           
+          //limiting mean values to avoid infinite values in case the model is misspecified
+          double bas;
+          bas = 10;
+          double po;
+          po= 300;
           double epsi;
-          epsi = pow(10,300); //limiting mean values
+          epsi = pow(bas,po); 
           
           if(type_c[node]==2) { //gauss
             if (natpar>(epsi)) Rcpp::stop("Value of Gaussian node approaches Inf (> 10^300) in Gibbs sampler. Gaussian Submatrix (Covariance matrix) is not positive definite.");

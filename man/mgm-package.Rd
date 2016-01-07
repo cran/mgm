@@ -12,7 +12,7 @@ Estimation of Mixed Graphical Models using L1-constrained neighborhood regressio
 \tabular{ll}{
 Package: \tab mgm\cr
 Type: \tab Package\cr
-Version: \tab 1.1-3 \cr
+Version: \tab 1.1-4 \cr
 Date: \tab 2016-01-06\cr
 License: \tab ? \cr
 }
