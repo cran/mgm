@@ -8,16 +8,15 @@ Estimation of time-varying mixed Autoregressive Models
 Estimation of time-varying mixed Autoregressive Models using L1-constrained regression.}
 \usage{
 tv_var.mgm(data, type, lev, lags = 1, tsteps = "default", 
-          bandwidth, gam = .25, d = 2,  rule.reg = "AND", 
-          pbar = TRUE, method = "glm", missings = 'error', 
-          ret.warn = FALSE)
+          bandwidth, gam = .25, d = 2, pbar = TRUE, 
+          method = "glm", missings = 'error', ret.warn = FALSE)
 }
 \arguments{
   \item{data}{
 n (time step) x p (variable) data matrix
 }
   \item{type}{
-p-vector containing the types of variable ("g" Gaussian, "e" Exponential, "p" Poisson, "c" Categorical)
+p-vector containing the types of variable ("g" Gaussian, "p" Poisson, "c" Categorical)
 }
   \item{lev}{
 p-vector containing the number of levels for each variable p (lev=1 for all continuous variables)
@@ -32,8 +31,7 @@ Gamma hyperparameter when lambda.sel="EBIC". Defaults to gam=.25 (Barber et al.,
   \item{d}{
 Degrees of augmented interactions. The degree of augmented interactions reflects our belief about the maximal degree in the true graph. (see Loh & Wainwright, 2013)
 }
-  \item{rule.reg}{
-Rule for combining the two parameters obtained for each edge due to the neighborhood-regression approach. The "OR"-rule determines conditional dependence if at least one of the two parameters is non-zero, the "AND"-rule determines conditional dependence if both parameters are non-zero.}
+
   \item{pbar}{Shows a progress-bar if TRUE}
 \item{method}{For each neighborhood regression, \code{method = "glm"} uses the appropriate link function for each variable type. \code{method = "linear"} uses linear regression for each variable, no matter of which type it is (for categorical variables, we predict each indicator variable using linear regression).}
 \item{missings}{Handling of missing values. The default \code{missings = 'error'} returns an error message in case there are missing data. \code{missings = 'casewise.zw'} sets the weight of missing cases to zero. This has the advantage over casewise (timestepwise) deletion that it does not corrupt the time scale. Using the weighting technique, the time scale remains intact and we use less data at a time step that is close to time steps with missing data. As a consequence, the algorithm is less sensitive at these time steps.}
@@ -47,14 +45,26 @@ For time-varying graphs \code{lambda.sel} is fixed to EBIC, as it is not straigh
 
 \value{
 Returns a list containing:
+
 \item{call}{A list with all function inputs except the data}
+
 \item{wadj}{A p x p x n weighted adjacency matrix, where n are the number of estimated time steps; Please note that we collapsed the interaction parameters involving categorical variables into one value by taking the mean of the absolute values; for the actual interaction parameters inspect mpar.matrix in the node models for each estimated time step.}
-\item{mpar.matrix}{A par x par x n parameter matrix, where n are the number of estimated time steps and par are the number of parameters in each row in the overcomplete representation. For details see \code{mpar.matrix} in \code{mgmfit}.}
+
+\item{mpar.matrix}{A n list with par x par matrices, where n are the number of estimated time steps and par are the number of parameters in each row in the overcomplete representation at the estimated time point n. For details see \code{mpar.matrix} in \code{mgmfit}.}
+
+\item{signs}{A p x p x n array that gives the sign of the edge parameters, if defined, for each estimated time point n. The sign is defined for edges between two continuous variables, where the edge weight is equal to the single parameter. It is not defined for interactions involving categorical variables, where dependency depends on more than one parameter. In case a sign is defined it is indicated as -1 or 1, if a sign is undefined there is a 0 entry. If an edge is absent, there is NA entry.}
+
+\item{edgecolor}{A p x p x n array that is equivalent to the \code{signs} array, however, it contains color names. This is useful for plotting the graphical model (for instance with the qgraph package) and indicating the sign (negative = red, positive = green, undefined = grey) for each edge in the graph.}
+
 \item{t.models}{A list with n entries containing the \code{mgmfit} output at each estimated time point. For details see the help file of \code{mgmfit}.}
+
 \item{Nt}{A n vector, indicating the sum of weights used at each time steps. As weights are normalized to the range [0,1], this can be interpreted as the effectively used sample size for estimation at time step n. This is interesting to check in the presence of missing data in the time-series.}
 }
 
 \references{
+
+Haslbeck, J., & Waldorp, L. J. (2016). mgm: Structure estimation for time-varying mixed graphical models in high-dimensional data. arXiv preprint http://arxiv.org/abs/1510.06871v2.
+
 Barber, R. F., & Drton, M. (2015). High-dimensional Ising model selection with Bayesian information criteria. Electronic Journal of Statistics, 9, 567-607.
 
 Friedman, J., Hastie, T., & Tibshirani, R. (2010). Regularization paths for generalized linear models via coordinate descent. Journal of statistical software, 33(1), 1. Chicago.
@@ -67,6 +77,7 @@ Yang, E., Baker, Y., Ravikumar, P., Allen, G., & Liu, Z. (2014). Mixed graphical
 
 Zhou, S., Lafferty, J., & Wasserman, L. (2010). Time varying undirected graphs. Machine Learning, 80(2-3), 295-319.
 }
+
 \author{
 Jonas Haslbeck <jonashaslbeck@gmail.com>
 }

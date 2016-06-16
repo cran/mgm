@@ -17,7 +17,7 @@ tv.mgmfit(data, type, lev, timepoints = NA, tsteps = "default",
 n (time step) x p (variable) data matrix
 }
   \item{type}{
-p-vector containing the types of variable ("g" Gaussian, "e" Exponential, "p" Poisson, "c" Categorical)
+p-vector containing the types of variable ("g" Gaussian, "p" Poisson, "c" Categorical)
 }
   \item{lev}{
 p-vector containing the number of levels for each variable p (lev=1 for all continuous variables)
@@ -48,15 +48,26 @@ For time-varying graphs \code{lambda.sel} is fixed to EBIC, as it is not straigh
 
 \value{
 Returns a list containing:
+
 \item{call}{A list with all function inputs except the data}
-\item{wadj}{A p x p x n weighted adjacency matrix, where n are the number of estimated time steps; Please note that we collapsed the interaction parameters involving categorical variables into one value by taking the mean of the absolute values; for the actual interaction parameters inspect mpar.matrix in the node models for each estimated time step.}
-\item{mpar.matrix}{A par x par x n parameter matrix, where n are the number of estimated time steps and par are the number of parameters in each row in the overcomplete representation. For details see \code{mpar.matrix} in \code{mgmfit}.}
+
+\item{wadj}{A p x p x n weighted adjacency array, where n are the number of estimated time steps; Please note that we collapsed the interaction parameters involving categorical variables into one value by taking the mean of the absolute values; for the actual interaction parameters inspect mpar.matrix in the node models for each estimated time step.}
+
+\item{mpar.matrix}{A n list with par x par matrices, where n are the number of estimated time steps and par are the number of parameters in each row in the overcomplete representation at the estimated time point n. For details see \code{mpar.matrix} in \code{mgmfit}.}
+
+\item{signs}{A p x p x n array that gives the sign of the edge parameters, if defined, for each estimated time point n. The sign is defined for edges between two continuous variables, where the edge weight is equal to the single parameter. It is not defined for interactions involving categorical variables, where dependency depends on more than one parameter. In case a sign is defined it is indicated as -1 or 1, if a sign is undefined there is a 0 entry. If an edge is absent, there is NA entry.}
+
+\item{edgecolor}{A p x p x n array that is equivalent to the \code{signs} array, however, it contains color names. This is useful for plotting the graphical model (for instance with the qgraph package) and indicating the sign (negative = red, positive = green, undefined = grey) for each edge in the graph.}
 
 \item{t.models}{A list with n entries containing the \code{mgmfit} output at each estimated time point. For details see the help file of \code{mgmfit}.}
+
 \item{Nt}{A n vector, indicating the sum of weights used at each time steps. As weights are normalized to the range [0,1], this can be interpreted as the effectively used sample size for estimation at time step n. This is interesting to check in the presence of missing data in the time-series.}
 }
 
 \references{
+
+Haslbeck, J., & Waldorp, L. J. (2016). mgm: Structure estimation for time-varying mixed graphical models in high-dimensional data. arXiv preprint http://arxiv.org/abs/1510.06871v2.
+
 Barber, R. F., & Drton, M. (2015). High-dimensional Ising model selection with Bayesian information criteria. Electronic Journal of Statistics, 9, 567-607.
 
 Friedman, J., Hastie, T., & Tibshirani, R. (2010). Regularization paths for generalized linear models via coordinate descent. Journal of statistical software, 33(1), 1. Chicago.
@@ -68,6 +79,7 @@ Loh, P. L., & Wainwright, M. J. (2013). Structure estimation for discrete graphi
 Yang, E., Baker, Y., Ravikumar, P., Allen, G., & Liu, Z. (2014). Mixed graphical models via exponential families. In Proceedings of the Seventeenth International Conference on Artificial Intelligence and Statistics (pp. 1042-1050).
 
 Zhou, S., Lafferty, J., & Wasserman, L. (2010). Time varying undirected graphs. Machine Learning, 80(2-3), 295-319.
+
 }
 \author{
 Jonas Haslbeck <jonashaslbeck@gmail.com>

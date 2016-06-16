@@ -1,10 +1,7 @@
 
-
-
-
 mgmfit_core <- function(
   data, # data matrix, col=variables
-  type, # data type for col 1:ncol; c=categorical, g=gaussian, p=poisson, e=exponential
+  type, # data type for col 1:ncol; c=categorical, g=gaussian, p=poisson
   lev, # number of categories of categorical variables, continuous variables have level=1
   lambda.sel = "EBIC", # method for penalization parameter (lambda) -selection 
   folds = 10, # folds in case CV is used for lambda selection
@@ -28,6 +25,9 @@ mgmfit_core <- function(
   n <- nrow(data) 
   c_ind <- which(type == "c") #indicator which variable categorical
   
+  # Check on variable typee
+  if(sum(!(type %in% c('c', 'g', 'p')))>0) stop("Only Gaussian 'g', Poisson 'p' or categorical 'c' variables allowed.")
+  
   # Initial Missing Value Check
   if(missings=='error') {
     ind_NA2 <- apply(data, 1, function(x) sum(is.na(x))>0) #check for missing values  
@@ -38,7 +38,7 @@ mgmfit_core <- function(
   
   # IF VAR: change data structure (+++)
   if(VAR) {
-    data <- f_VARreshape(as.matrix(data))
+    data <- VARreshape(as.matrix(data))
     n <- nrow(data) # one observation less in AR, because we have no predictor for first time point
     lev <- c(lev, lev)
     type <- c(type, type)
@@ -397,6 +397,23 @@ mgmfit_core <- function(
     }
   }
   
+  
+  
+  # +++++ extract sign matrix ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #####
+  
+  signs <- matrix(NA, nNode, nNode)
+  signs[adjmat!=0] <- 0
+  ind <- which(dummy_par.var %in% which(type_sh!='c'))
+  signs[type_sh!='c', type_sh!='c'] <- sign(mpm[ind,ind])
+
+  signs[adjmat.f==0] <- NA
+  
+  edgeColor <- matrix('black', nNode, nNode)
+  edgeColor[signs==0] <- 'grey'
+  edgeColor[signs==1] <- 'darkgreen'
+  edgeColor[signs==-1] <- 'red'
+  
+  
   # +++++ prepare output ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #####
   
   #dichotomize
@@ -408,16 +425,21 @@ mgmfit_core <- function(
     diag(adjmat.f) <- 0
   }
   
+  # get back to right length of type/lev vector for output
+  if(VAR) {
+    type <- type[1:(length(type)/2)] 
+    lev <- type[1:(length(lev)/2)] 
+    }
+  
+  
   ## call
   call <- list('type'=type, 'lev'=lev, 'lambda.sel'=lambda.sel, 'folds'=folds, 
                'gam'=gam, 'd'=d, 'rule.reg'=rule.reg, "method"=method, 
                'weights'=weights, 'ret.warn'=ret.warn)
   
-  outlist <- list('call'=call, "adj"=adj, "wadj"=adjmat.f, 'mpar.matrix' = mpm, 
+  outlist <- list('call'=call, "adj"=adj, "wadj"=adjmat.f, 'mpar.matrix' = mpm, 'signs'=signs, 'edgecolor'=edgeColor,
                   "node.models" = node_models, "par.labels"=dummy_par.var, 'warnings'=warn_list ,
                   'variance.check' = ind_nzv)
-  
-  class(outlist) <- "mgm"
   
   return(outlist)
 } 
