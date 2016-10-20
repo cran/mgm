@@ -11,8 +11,9 @@ Print a selection of the output-list of the function \code{mgmfit}}
 \arguments{
   \item{object}{The output object of \code{mgmfit}, \code{tv.mgmfit}, \code{var.mgm} or \code{tv_var.mgm}.}
   \item{data}{If a dataset matching the dataset used for estimation is provided, the summary function adds a column with node wise errors to the output.}
-  \item{...}{Other summary arguments.}
+  \item{...}{Not sed.}
 }
+
 \value{
 Outputs a dataframe (stationary models) or list of dataframes (time-varying models) with the columns Variable, Type, Degree, Lambda, Threshold, EBIC and if specified, nodewise errors}
 

@@ -1,6 +1,12 @@
 
 
-predict.mgm <- function(object, data, variables='all', ...) {
+
+predict.mgm <- function(object, 
+                        data, 
+                        variables='all', 
+                        error.continuous = 'RMSE', # or 'VarExpl'
+                        error.categorical = 'CorrectClass', # or 'CorrectClassNorm'
+                        ...) {
   
   # ---------- input checks ----------
   
@@ -8,11 +14,10 @@ predict.mgm <- function(object, data, variables='all', ...) {
   if(ncol(data)!=length(object$call$type)) stop('Please provide a dataset matching the one that was used for estimation.')
   
   # define relevant variables
-  names <- FALSE
   if(variables[1]=='all') {
     Nseq <- 1:ncol(data)
   } else if(class(variables)=='character') {
-    Nseq <- which(colnames(data) %in% variables); names <- TRUE
+    Nseq <- which(colnames(data) %in% variables);
   } else if (sum(!(round(variables)==variables))==0) # check for integers
   { 
     Nseq <- variables
@@ -20,11 +25,8 @@ predict.mgm <- function(object, data, variables='all', ...) {
     stop("Please provide the a vector of column indices or column names as input for the argument 'variables' " )
   }
   
-  
-  
   # Assign column names
-  if(!names) colnames(data)  <- 1:ncol(data)
-  
+  if(is.null(colnames(data))) colnames(data)  <- 1:ncol(data)
   
   # ---------- Loop over Time Points ----------
   
@@ -54,6 +56,7 @@ predict.mgm <- function(object, data, variables='all', ...) {
     
     error_list <- list()
     pred_list <- list()
+    pred_list_prob <- list()
     
     if(('var' %in% class(object))==FALSE) {
       
@@ -76,7 +79,7 @@ predict.mgm <- function(object, data, variables='all', ...) {
           ## Prediction Categorical
           coefs <- node.models[[v]]$coefs
           K <- length(coefs)
-          Potentials <- matrix(NA, nCases, K+1)
+          Potentials <- matrix(NA, nCases, K)
           
           # loop over categories & compute potentials
           
@@ -86,18 +89,28 @@ predict.mgm <- function(object, data, variables='all', ...) {
           }
           
           # compute category-probabilities
-          Potentials[,K+1] <- sum(Potentials[,1:K])
           Probabilities <- Potentials[,1:K] / rowSums(Potentials[,1:K])
-          pred_list[[v]] <- PredictedCat <- apply(Probabilities, 1, which.max) # classify
+          pred_class_id <-  apply(Probabilities, 1, which.max) # classify
+          pred_list[[v]] <- PredictedCat <- sort(unique(data[,v]))[pred_class_id]
+          pred_list_prob[[v]] <- Probabilities
           error_list[[v]] <- sum(weights*(PredictedCat==data[,v])) # proportion correctly classified
+          if(error.categorical == 'CorrectClassNorm') {
+            tb <- table(data[,v])
+            norm_constant <- max(tb/sum(tb)) # normalize by maximum additional accuracy that can be predicted beyond the larger marginal frequency
+            error_list[[v]] <- (error_list[[v]]-norm_constant) / (1-norm_constant)
+          }
           
         } else {
           ## Prediction Continuous
           # predicitions
           coefs <- as.numeric(node.models[[v]]$coefs) # get coefficients
           pred_list[[v]] <- preds <-  coefs[1] + X %*% matrix(coefs[-1][1:ncol(X)], nrow=length(coefs[-1][1:ncol(X)])) # predict
-          error_list[[v]] <- sqrt(sum(weights*(preds-as.numeric(data[,1]))^2) ) # compute RMSE
-          
+          pred_list_prob[[v]] <- preds
+          if(error.continuous=='RMSE') {
+            error_list[[v]] <- sqrt(sum(weights*(preds-as.numeric(data[,v]))^2) ) # compute RMSE
+          } else {
+            error_list[[v]] <- 1 - var(preds-data[,v]) / var(data[,v])
+          }
         }
         
       } # end of variable loop 'mgm'
@@ -136,16 +149,26 @@ predict.mgm <- function(object, data, variables='all', ...) {
           # compute category-probabilities
           Potentials[,K+1] <- sum(Potentials[,1:K])
           Probabilities <- Potentials[,1:K] / rowSums(Potentials[,1:K])
-          pred_list[[v]] <- PredictedCat <- apply(Probabilities, 1, which.max) # classify
+          pred_class_id <-  apply(Probabilities, 1, which.max) # classify
+          pred_list[[v]] <- PredictedCat <- sort(unique(data[-1,v]))[pred_class_id]
+          pred_list_prob[[v]] <- Probabilities
           error_list[[v]] <- sum(weights*(PredictedCat==data[-1,v])) # proportion correctly classified
-          
+          if(error.categorical == 'CorrectClassNorm') {
+            tb <- table(data[-1,v])
+            norm_constant <- max(tb/sum(tb)) # normalize by maximum additional accuracy that can be predicted beyond the larger marginal frequency
+            error_list[[v]] <- (error_list[[v]]-norm_constant) / (1-norm_constant)
+          }
         } else {
           ## Prediction Continuous
           # predicitions
           coefs <- as.numeric(node.models[[v]]$coefs) # get coefficients
           pred_list[[v]] <- preds <-  coefs[1] + X %*% matrix(coefs[-1][1:ncol(X)], nrow=length(coefs[-1][1:ncol(X)])) # predict
-          error_list[[v]] <- sqrt(sum(weights*(preds-as.numeric(data[-1,v]))^2)) # compute RMSE
-          
+          pred_list_prob[[v]] <- preds
+          if(error.continuous=='RMSE') {
+            error_list[[v]] <- sqrt(sum(weights*(preds-as.numeric(data[-1,v]))^2) ) # compute RMSE
+          } else {
+            error_list[[v]] <- 1 - var(preds-data[-1,v]) / var(data[-1,v])
+          }
         }
         
       } # end of variable loop 'var'
@@ -157,8 +180,9 @@ predict.mgm <- function(object, data, variables='all', ...) {
     
     # Define error type
     eType <- rep(NA, nNodes)
-    eType[type[1:nNodes]=='c'] <- '%Correct'
-    eType[type[1:nNodes]!='c'] <- 'RMSE'
+    
+    eType[type[1:nNodes]=='c'] <- error.categorical
+    eType[type[1:nNodes]!='c'] <- error.continuous
     
     error_out <- data.frame(matrix(NA, length(Nseq), 3))
     colnames(error_out) <- c("Variable", 'Error', "ErrorType")
@@ -169,7 +193,7 @@ predict.mgm <- function(object, data, variables='all', ...) {
     # collapse predictions into matrix
     predmat <- do.call(cbind, pred_list)
     
-    out_list[[ts]] <- list('error'=error_out, 'pred'=predmat)
+    out_list[[ts]] <- list('error'=error_out, 'pred'=predmat, 'pred_prob'=pred_list_prob)
     
   } # end for: timesteps
   

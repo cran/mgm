@@ -9,7 +9,9 @@ Nodewise predictions and errors
 Computes predictions and error for all nodes in the graph.
 }
 \usage{
-\method{predict}{mgm}(object, data, variables='all', ...)
+\method{predict}{mgm}(object, data, variables='all', 
+        error.continuous = 'RMSE', 
+        error.categorical = 'CorrectClass', ...)
 }
 
 \arguments{
@@ -19,7 +21,15 @@ The output object of \code{mgmfit}, \code{tv.mgmfit}, \code{var.mgm} or \code{tv
 \item{data}{
 A data matrix with the same properties as the data on which the model was fit. Note that different data can be used here to estimate the out of sample prediction error.}
 \item{variables}{A character vector of variable names or a numeric vector of column numbers for which the the nodewise predictions and nodewise error should be computed. The default \code{variables='all'} computes predictions and error for all variables.}
-\item{...}{Other prediction arguments.}
+
+\item{error.continuous}{Error measure for continuous variables. Default is \code{error.continuous = 'RMSE'} Root Mean Squared Error (RMSE). The alternative is \code{error.continuous = 'VarExpl'} proportion of explained variance 1 - var(y - yhat)/var(y).}
+
+
+\item{error.categorical}{Error measure for categorica variables. Default is the proportion of correct classification \code{error.categorical = 'CorrectClass'}. The alternative is a normalized version of correct classification \code{error.categorical = 'CorrectClassNorm'}, which takes the marginal distribution into account. Specifically, CorrectClassNorm = (CorrectClass - max(RelativeFrequencies)) / (1-max(RelativeFrequencies)).
+
+\code{error.categorical = 'VarExpl'} proportion of explained variance 1 - var(y - yhat)/var(y).}
+
+\item{...}{Not used.}
 }
 
 \value{
@@ -29,6 +39,7 @@ In the case of stationarty graphs the function returns a list, in the case of ti
 
 \item{error}{A data frame with the columns: Variable, Error and ErrorType. As error we report the root mean squared error (RMSE) for continuous variables and the proportion of correct classification for categorical variables. For time-varying graphs, both types of errors are weighted by the same weights used during estimation.}
 
+\item{pred_prob}{A list of length p, containing the predicitions for continuous variables as in the matrix \code{pred} and the predicted probabilities for each category for categorical variables.}
 
 }
 
