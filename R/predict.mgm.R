@@ -1,207 +1,635 @@
 
 
+predict.mgm <- function(object, # One of the four mgm objects
+                        data, # data in same format as used for fitting
+                        errorCon, # specifying error or providing function for continuous variables
+                        errorCat, # specifying error or providing function for categorical variables
+                        tvMethod, # 'weighted' vs. 'closestModel'
+                        ...)
+  
+  
+{
+  
+  
+  # ----- Compute Aux Variables -----
+  
+  cobj <- class(object)[2]
+  type <- object$call$type
+  p <- ncol(data)
+  n <- nrow(data)
+  n_var <- n - max(object$call$lags)
+  
+  if(cobj %in% c('code', 'tvmgm'))  n_pred <- n  
+  if(cobj %in% c('mvar', 'tvmvar'))  n_pred <- n_var
+  
 
-predict.mgm <- function(object, 
-                        data, 
-                        variables='all', 
-                        error.continuous = 'RMSE', # or 'VarExpl'
-                        error.categorical = 'CorrectClass', # or 'CorrectClassNorm'
-                        ...) {
   
-  # ---------- input checks ----------
+  level <- object$call$level
   
-  if(object$call$method!='glm') stop("Predictions can only be computed for estimation method='glm'.")
-  if(ncol(data)!=length(object$call$type)) stop('Please provide a dataset matching the one that was used for estimation.')
-  
-  # define relevant variables
-  if(variables[1]=='all') {
-    Nseq <- 1:ncol(data)
-  } else if(class(variables)=='character') {
-    Nseq <- which(colnames(data) %in% variables);
-  } else if (sum(!(round(variables)==variables))==0) # check for integers
-  { 
-    Nseq <- variables
-  } else { 
-    stop("Please provide the a vector of column indices or column names as input for the argument 'variables' " )
+  # Scale Gaussians if scale==TRUE
+  if(object$call$scale) {
+    for(j in which(type=='g')) data[, j] <- scale(data[, j])
   }
   
-  # Assign column names
-  if(is.null(colnames(data))) colnames(data)  <- 1:ncol(data)
+  # ---------- Input Checks ----------
   
-  # ---------- Loop over Time Points ----------
+  if(!(cobj %in% c('core', 'mvar', 'tvmgm', 'tvmvar'))) stop('Please provide a mgm fit object.')
   
-  out_list <- list()
   
-  if('tv.mgm' %in% class(object) | 'tv.var' %in% class(object)) {
-    tsteps <- object$call$tsteps
-  } else {
-    tsteps <- 1
-  }
-  
-  for(ts in 1:tsteps) {
+  if(cobj %in% c('core', 'mvar')) {
     
-    if(tsteps>1) { # for time varying
-      call <- object$call
-      node.models <- object$t.models[[ts]]$node.models
-      weights_raw <- object$t.models[[ts]]$call$weights
-      weights <- weights_raw / sum(weights_raw)
-    } else { # for stationary
-      call <- object$call
-      node.models <- object$node.models
-      weights <- rep(1/nrow(data), nrow(data))
-      if('var' %in% class(object)) weights <- weights[-1]
+    # is the model object saved?
+    if(is.null(object$nodemodels)) stop(paste0('Prediction is only possible if the model-object is saved. See ?', cobj))
+    
+    # does data have same number of columns as the fitting data?
+    if(!(ncol(data) == length(object$call$type))) stop('The data used for prediction has to have the same number of variables as the data used for estimation.')
+    
+  }
+  
+  
+  if(cobj %in% c('tvmgm', 'tvmvar')) {
+    
+    # Has the provided time-series data the same lenght as the time-series used for fitting?
+    
+    if(cobj == 'tvmvar') {
+      if(nrow(data)-max(object$tvmodels[[1]]$call$lags) != length(object$tvmodels[[1]]$call$weights)) {
+        stop('For time-varying models the time-series used for prediction has to have the same lenght as the time-series used for estimation.')
+      }
     }
     
-    # ---------- Loop over Variables & collect Errors ----------
+    if(cobj == 'tvmgm') {
+      if(nrow(data) != length(object$tvmodels[[1]]$call$weights)) {
+        stop('For time-varying models the time-series used for prediction has to have the same lenght as the time-series used for estimation.')
+      }
+    }
     
-    error_list <- list()
-    pred_list <- list()
-    pred_list_prob <- list()
+    # does data have same number of columns as the fitting data?
+    if(!(ncol(data) == length(object$tvmodels[[1]]$call$type))) stop('The data used for prediction has to have the same number of variables as the data used for estimation.')
     
-    if(('var' %in% class(object))==FALSE) {
-      
-      # ----- for mgm objects ----
-      type <- call$type
-      nNodes <- length(type)
-      nCases <- nrow(data)
-      for(sc in which(type=='g')) data[,sc] <- scale(data[,sc]) # scale gaussians
-      
-      for(v in Nseq) {
-        
-        # Make model matrix (compute dummies for categoricals)
-        data_m <- data.frame(data)
-        for(cat in which(type=='c')) data_m[,cat] <- as.factor(data_m[,cat])
-        form <- as.formula(paste(colnames(data_m)[v],"~ (.)"))
-        X <- model.matrix(form, data= data_m)[,-1]   
-        
-        if(type[v]=='c') {
-          
-          ## Prediction Categorical
-          coefs <- node.models[[v]]$coefs
-          K <- length(coefs)
-          Potentials <- matrix(NA, nCases, K)
-          
-          # loop over categories & compute potentials
-          
-          for(k in 1:K) {
-            # Compute exp(potentials)
-            Potentials[,k] <- exp(coefs[[k]][1] + X %*% matrix(coefs[[k]][-1][1:ncol(X)], nrow=length(coefs[[k]][-1][1:ncol(X)])))
-          }
-          
-          # compute category-probabilities
-          Probabilities <- Potentials[,1:K] / rowSums(Potentials[,1:K])
-          pred_class_id <-  apply(Probabilities, 1, which.max) # classify
-          pred_list[[v]] <- PredictedCat <- sort(unique(data[,v]))[pred_class_id]
-          pred_list_prob[[v]] <- Probabilities
-          error_list[[v]] <- sum(weights*(PredictedCat==data[,v])) # proportion correctly classified
-          if(error.categorical == 'CorrectClassNorm') {
-            tb <- table(data[,v])
-            norm_constant <- max(tb/sum(tb)) # normalize by maximum additional accuracy that can be predicted beyond the larger marginal frequency
-            error_list[[v]] <- (error_list[[v]]-norm_constant) / (1-norm_constant)
-          }
-          
-        } else {
-          ## Prediction Continuous
-          # predicitions
-          coefs <- as.numeric(node.models[[v]]$coefs) # get coefficients
-          pred_list[[v]] <- preds <-  coefs[1] + X %*% matrix(coefs[-1][1:ncol(X)], nrow=length(coefs[-1][1:ncol(X)])) # predict
-          pred_list_prob[[v]] <- preds
-          if(error.continuous=='RMSE') {
-            error_list[[v]] <- sqrt(sum(weights*(preds-as.numeric(data[,v]))^2) ) # compute RMSE
-          } else {
-            error_list[[v]] <- 1 - var(preds-data[,v]) / var(data[,v])
-          }
-        }
-        
-      } # end of variable loop 'mgm'
-      
-    } else {
-      
-      # ----- for VAR objects ----
-      type <- call$type
-      type2 <- c(type, type)
-      nNodes <- length(type)
-      nCases <- nrow(data)
-      for(sc in which(type[1:nNodes]=='g')) data[,sc] <- scale(data[,sc]) # scale gaussians
-      
-      for(v in 1:nNodes) {
-        
-        # Make model matrix (compute dummies for categoricals)
-        data_lag1 <- data.frame(VARreshape(as.matrix(data)))
-        for(cat in which(type2=='c')) data_lag1[,cat] <- as.factor(data_lag1[,cat])
-        data_lag1_cut <-   data_lag1[,-c((1:nNodes)[-v])]
-        form <- as.formula(paste(colnames(data_lag1_cut)[1],"~ (.)"))
-        X <- model.matrix(form, data= data_lag1_cut)[,-1]   
-        
-        if(type[v]=='c') {
-          
-          ## Prediction Categorical
-          coefs <- node.models[[v]]$coefs
-          K <- length(coefs)
-          Potentials <- matrix(NA, nCases-1, K+1)
-          
-          # loop over categories & compute potentials
-          for(k in 1:K) {
-            # Compute exp(potentials)
-            Potentials[,k] <- exp(coefs[[k]][1] + X %*% matrix(coefs[[k]][-1][1:ncol(X)], nrow=length(coefs[[k]][-1][1:ncol(X)])))
-          }
-          
-          # compute category-probabilities
-          Potentials[,K+1] <- sum(Potentials[,1:K])
-          Probabilities <- Potentials[,1:K] / rowSums(Potentials[,1:K])
-          pred_class_id <-  apply(Probabilities, 1, which.max) # classify
-          pred_list[[v]] <- PredictedCat <- sort(unique(data[-1,v]))[pred_class_id]
-          pred_list_prob[[v]] <- Probabilities
-          error_list[[v]] <- sum(weights*(PredictedCat==data[-1,v])) # proportion correctly classified
-          if(error.categorical == 'CorrectClassNorm') {
-            tb <- table(data[-1,v])
-            norm_constant <- max(tb/sum(tb)) # normalize by maximum additional accuracy that can be predicted beyond the larger marginal frequency
-            error_list[[v]] <- (error_list[[v]]-norm_constant) / (1-norm_constant)
-          }
-        } else {
-          ## Prediction Continuous
-          # predicitions
-          coefs <- as.numeric(node.models[[v]]$coefs) # get coefficients
-          pred_list[[v]] <- preds <-  coefs[1] + X %*% matrix(coefs[-1][1:ncol(X)], nrow=length(coefs[-1][1:ncol(X)])) # predict
-          pred_list_prob[[v]] <- preds
-          if(error.continuous=='RMSE') {
-            error_list[[v]] <- sqrt(sum(weights*(preds-as.numeric(data[-1,v]))^2) ) # compute RMSE
-          } else {
-            error_list[[v]] <- 1 - var(preds-data[-1,v]) / var(data[-1,v])
-          }
-        }
-        
-      } # end of variable loop 'var'
-      
-    } # end if: mgm vs var
+    # Is the model object saved?
+    if(is.null(object$tvmodels[[1]]$nodemodels)) stop(paste0('Prediction is only possible if the model-object is saved. See ?', cobj))
     
     
-    # ---------- output ----------
-    
-    # Define error type
-    eType <- rep(NA, nNodes)
-    
-    eType[type[1:nNodes]=='c'] <- error.categorical
-    eType[type[1:nNodes]!='c'] <- error.continuous
-    
-    error_out <- data.frame(matrix(NA, length(Nseq), 3))
-    colnames(error_out) <- c("Variable", 'Error', "ErrorType")
-    error_out$Variable <- colnames(data)[Nseq]
-    error_out$Error <- round(unlist(error_list),3)
-    error_out$ErrorType <- eType[Nseq]
-    
-    # collapse predictions into matrix
-    predmat <- do.call(cbind, pred_list)
-    
-    out_list[[ts]] <- list('error'=error_out, 'pred'=predmat, 'pred_prob'=pred_list_prob)
-    
-  } # end for: timesteps
-  
-  if(tsteps==1) {
-    return(out_list[[1]])
-  } else {
-    return(out_list)
   }
   
   
-} # EoF
+  # Checks only for time-varying objects
+  if(cobj %in% c('tvmgm', 'tvmvar')) {
+    
+    if(missing(tvMethod)) stop('Specify the type of error for the time-varying model, see ?tvmgm or ?tvmvar!')
+    
+  } else {
+    
+    tvMethod <- 'NA'
+    
+  }
+  
+  
+  
+  # ----- Fill in defaults -----
+  
+  # todo: if error types missing, don't compute errors!
+  if(missing(errorCon)) {
+    if(any(c('g', 'p') %in% type)) {
+      errorCon <- c('R2', 'RMSE')
+    } else {
+      errorCon <- NULL
+    }
+  }
+  
+  
+  if(missing(errorCat)) {
+    if('c' %in% type) {
+      errorCat <- c('CC', 'nCC')
+    } else {
+      errorCat <- NULL
+    }
+  }
+  
+  
+  # ----- Define Error Functions -----
+  
+  # Proportion Variance Explained
+  f_error_R2 <- function(true, pred, weights = NULL) {
+    
+    if(is.null(weights)) weights <- rep(1, length(true))
+    
+    res <- true - pred
+    R2 <- 1 - wtd.var(res, weights)/wtd.var(true, weights)
+    return(R2)
+  }
+  
+  # Root Mean Squared Error
+  f_error_RMSE <- function(true, pred, weights = NULL) {
+    
+    if(is.null(weights)) weights <- rep(1, length(true))
+    
+    weights_norm <- weights / sum(weights)
+    RMSE <- sqrt(sum(weights_norm * (true - pred)^2))
+    
+    return(RMSE)
+  }
+  
+  # Proportion Correct Classification / Accuracy
+  f_error_CC <- function(true, pred, weights = NULL) {
+    
+    if(is.null(weights)) weights <- rep(1, length(true))
+    weights_norm <- weights / sum(weights)
+    
+    CC <- sum((true == pred)*weights_norm)
+    return(CC)
+  }
+  
+  
+  # Normalized Accuracy (Accuracy full model minus Accuracy intercept model)
+  f_error_nCC <- function(true, pred, weights = NULL) {
+    
+    if(is.null(weights)) weights <- rep(1, length(true))
+    weights_norm <- weights / sum(weights)
+    
+    CC <- sum((true == pred)*weights_norm)
+    tb <- table(true)
+    norm_constant <- max(tb/sum(tb)) # normalize by maximum additional accuracy that can be predicted beyond the larger marginal frequency
+    nCC <- (CC - norm_constant) / (1 - norm_constant)
+    return(nCC)
+  }
+  
+  
+  
+  
+  # Create list for loss functions
+  
+  # Continuous
+  l_errorCon <- list()
+  if(class(errorCon)=='character') {
+    
+    if('R2' %in% errorCon & !('RMSE' %in% errorCon)) l_errorCon <- list('R2' = f_error_R2)
+    if('RMSE' %in% errorCon & !('R2' %in% errorCon)) l_errorCon <- list('RMSE' = f_error_RMSE)
+    if(all(c('R2', 'RMSE') %in% errorCon)) l_errorCon <- list('RMSE' = f_error_RMSE, 'R2' = f_error_R2)
+    
+  } else if(class(errorCon)=='list') {
+    
+    l_errorCon <- errorCon
+    
+    for(e in 1:length(errorCon)) {
+      if(l_errorCon[[e]] == 'RMSE') l_errorCon[[e]] <- f_error_RMSE
+      if(l_errorCon[[e]] == 'R2') l_errorCon[[e]] <- f_error_R2
+    }
+    
+  } else if(is.null(errorCon)) {
+    
+    l_errorCon <- NULL
+    
+  } else {
+    stop('errorCon must either be a list of supported error functions or a list of supported and/or custom error functions.')
+  }
+  
+  
+  
+  # Categorical
+  l_errorCat <- list()
+  if(class(errorCat)=='character') {
+    
+    if('CC' %in% errorCat & !('nCC' %in% errorCat)) l_errorCat <- list('CC' = f_error_CC)
+    if('nCC' %in% errorCat & !('CC' %in% errorCat)) l_errorCat <- list('nCC' = f_error_nCC)
+    if(all(c('CC', 'nCC') %in% errorCat)) l_errorCat <- list('CC' = f_error_CC, 'nCC' = f_error_nCC)
+    
+  } else if(class(errorCat)=='list') {
+    
+    for(e in 1:length(errorCat)) {
+      if(l_errorCat[[e]] == 'CC') l_errorCat[[e]] <- f_error_CC
+      if(l_errorCat[[e]] == 'nCC') l_errorCat[[e]] <- f_error_nCC
+    }
+    
+  } else if(is.null(errorCat)) {
+    
+    l_errorCat <- NULL
+    
+  } else {
+    stop('errorCat must either be a list of supported error functions or a list of supported and/or custom error functions.')
+  }
+  
+  
+  
+  # ----- Create Prediction Object -----
+  
+  predObj <- list('call' = NULL,
+                  'predicted' = NULL,
+                  'probabilties' = NULL,
+                  'true' = NULL,
+                  'errors' = NULL)
+  
+  
+  # Copy the Call
+  
+  predObj$call <- list('object' = object,
+                       'data' = data,
+                       'errorCon' = l_errorCon,
+                       'errorCat' = l_errorCat,
+                       'tvMethod' = tvMethod)
+  
+  
+  
+  # ---------- A) Stationary Models ----------
+  
+  if(cobj %in% c('core', 'mvar')) {
+    
+    # ----- Make Predictions -----
+    
+    corePred <- predictCore_stat(object = object,
+                                 data = data)
+    
+    
+    
+    m_pred <- do.call(cbind, corePred$pred) # Collapse predictions in matrix
+    
+    preds <- m_pred
+    probs <- corePred$prob
+    true <- corePred$true
+    
+  } # end if: stationary?
+  
+  
+  # ---------- B) Time-varying Models ----------
+  
+  if(cobj %in% c('tvmgm', 'tvmvar')) {
+    
+    if(cobj == 'tvmgm') cobj_ep <- c('mgm', 'core')
+    if(cobj == 'tvmvar') cobj_ep <- c('mgm', 'mvar')
+    
+    n_estpoints <- length(object$call$estpoints)
+    
+    
+    # ++++++++++ Prediction Option B.1: 'weighted' ++++++++++
+    
+    l_errors_ep_con <- l_errors_ep_cat <- l_preds <- l_probs <- l_true <- l_weights <- vector('list', length = n_estpoints) # Storage
+    
+    if(tvMethod == 'weighted') {
+      
+      for(ep in 1:n_estpoints) {
+        
+        # ----- Make Predictions -----
+        
+        object_ep <- object$tvmodels[[ep]]
+        class(object_ep) <- cobj_ep
+        
+        corePred <- l_preds[[ep]] <- predictCore_stat(object = object_ep,
+                                                      data = data)
+        
+        # Save separate for output:
+        l_preds[[ep]] <- do.call(cbind, corePred$pred)
+        l_probs[[ep]] <- corePred$prob
+        l_true[[ep]] <- corePred$true
+        
+        # Save 
+        l_weights[[ep]] <- object_ep$call$weights
+        
+      } # end for: estpoints
+      
+      
+      # ----- Collapse Predictions via Weighting -----
+      
+      # add up weights
+      m_weights <- do.call(cbind, l_weights)
+      v_weights <- rowSums(m_weights)
+      
+      p_ind_con <- which(type != 'c')
+      p_ind_cat <- which(type == 'c')
+      
+      
+      # --- Continuous Variables ---
+      
+      l_w_predict_cat <- list()
+      a_w_predict_con <- array(NA, dim = c(n_pred, length(p_ind_con), n_estpoints))
+      for(ep in 1:n_estpoints) {
+        
+        object_ep <- object$tvmodels[[ep]]
+        
+        # For continuous variables (just convex combination of values)
+        a_w_predict_con[, , ep] <- apply(l_preds[[ep]][,p_ind_con], 2, function(x) {
+          w_pred_col <- x*m_weights[, ep]
+          return(w_pred_col)
+        })
+        
+      }
+      
+      # Continuous: sum up and scale back
+      m_w_predict_con1 <- apply(a_w_predict_con, 1:2, sum)
+      m_w_predict_con2 <- apply(m_w_predict_con1, 2, function(x)  {
+        
+        cb <- cbind(x, v_weights)
+        apply(cb, 1, function(x)  x[1] / x[2])
+        
+      })
+      
+      # --- Categorical Variables ---
+      
+      
+      # For categorical variables (convex combination of probabilities)
+      l_w_predict_cat <- list()
+      cat_counter <- 1
+      
+      for(v in p_ind_cat) {
+        
+        a_w_predict_cat <- array(NA, dim = c(n_pred, level[v], n_estpoints))
+        
+        for(ep in 1:n_estpoints) {
+          
+          a_w_predict_cat[, , ep] <- l_probs[[ep]][[v]]
+          a_w_predict_cat[, , ep] <- apply(a_w_predict_cat[, , ep], 2, function(x) x * m_weights[, ep])
+          
+        }
+        
+        l_w_predict_cat[[cat_counter]] <- a_w_predict_cat        
+        cat_counter <- cat_counter + 1
+        
+      }
+      
+      l_cat_labels <- list()
+      for(i in 1:length(p_ind_cat)) l_cat_labels[[i]] <- sort(unique(data[, p_ind_cat[i]]))
+      
+      # Sum up and scale back probabilities
+      l_probs_agg <- lapply(l_w_predict_cat, function(x) {
+        p_agg1 <- apply(x, 1:2, sum)
+        p_agg2 <- apply(p_agg1, 2, function(x) x / v_weights)
+        
+      })
+      
+      # Predict category
+      l_cat_predicted <-  list()
+      for(i in 1:length(p_ind_cat)) {
+        l_cat_predicted[[i]] <- l_cat_labels[[i]][apply(l_probs_agg[[i]], 1, which.max)]
+      }
+      m_cat_predicted <- do.call(cbind, l_cat_predicted)
+      
+      
+      
+      # --- Putting all back together ---
+      
+      m_preds_final <- matrix(NA, n_pred, p)
+      m_preds_final[, p_ind_con] <- m_w_predict_con2
+      m_preds_final[, p_ind_cat] <- m_cat_predicted
+      
+      # Bring in uniform output format
+      preds <- m_preds_final
+      probs <- l_probs_agg
+      true <- corePred$true
+      
+      
+      # ----- Calculate Errors -----
+      
+      
+      # I think can now be done as in stationary case; maybe simplify code, s.t. error computation is outside the tv/stationary method
+      
+      
+      # m_pred <- do.call(cbind, corePred$pred) # Collapse predictions in matrix
+      # v_error <- v_errortype <- rep(NA, p) # Create Storage
+      # 
+      # 
+      # # Errors Continuous
+      # l_errors_con <- list()
+      # if(!is.null(l_errorCon)) {
+      #   for(e in 1:length(l_errorCon)) {
+      #     v_errors <- rep(NA, p)
+      #     for(j in 1:p)  if(type[j] != 'c')  v_errors[j] <- l_errorCon[[e]](true = corePred$true[, j],
+      #                                                                       pred = m_pred[, j],
+      #                                                                       weights = object$tvmodels[[ep]]$call$weights)
+      #     l_errors_con[[e]] <- v_errors
+      #   }
+      #   names(l_errors_con) <- names(l_errorCon)
+      # }
+      # l_errors_ep_con[[ep]] <- l_errors_con
+      # 
+      # # Errors Categorical
+      # l_errors_cat <- list()
+      # if(!is.null(l_errorCat)) {
+      #   for(e in 1:length(l_errorCat)) {
+      #     v_errors <- rep(NA, p)
+      #     for(j in 1:p)  if(type[j] == 'c')  v_errors[j] <- l_errorCat[[e]](true = corePred$true[, j],
+      #                                                                       pred = m_pred[, j],
+      #                                                                       weights = object$tvmodels[[ep]]$call$weights)
+      #     l_errors_cat[[e]] <- v_errors
+      #   }
+      #   names(l_errors_cat) <- names(l_errorCat)
+      # }
+      # l_errors_ep_cat[[ep]] <- l_errors_cat
+      
+      
+      
+      # Aggregate: across estimation points - yes!
+      
+      # browser()
+      
+      
+      
+    } # end if: tvMethod weighted?
+    
+    
+    
+    # ++++++++++ Prediction Option B.1: 'closestModel' ++++++++++
+    
+    if(tvMethod == 'closestModel') {
+      
+      l_preds <- l_true <- l_probs <- vector('list', length = n_estpoints) # Storage
+      
+      # ----- Determine closest Model for all time points -----
+      
+      v_timepoints <- object$call$timepoints # for both tvmgm and tvmvar
+      n_timepoints <- length(v_timepoints)
+      
+      m_assign <- matrix(NA,
+                         nrow = n_timepoints,
+                         ncol = n_estpoints)
+      for(tp in 1:n_timepoints) m_assign[tp, ] <- abs(v_timepoints[tp] - object$call$estpointsNorm)
+      
+      v_assign <- apply(m_assign, 1, which.min)
+      
+      
+      # ----- Make Predictions -----
+      
+      for(ep in 1:n_estpoints) {
+        
+        # determine closest time points
+        
+        object_ep <- object$tvmodels[[ep]]
+        class(object_ep) <- cobj_ep
+        
+        # we fit each model on all data to avoid problems with scaling and overlap with predictors because of the VAR model
+        codePred <- predictCore_stat(object = object_ep,
+                                     data = data) # only data closest to model at current time point
+        
+        # Copy relevant predictions, defined by v_assign
+        if('core' %in% cobj_ep) ind_batch <- v_assign==ep
+        if('mvar' %in% cobj_ep) ind_batch <- v_assign[-c(1:max(object$call$lags))]==ep
+        
+        l_preds[[ep]] <- do.call(cbind, codePred$pred)[ind_batch,]
+        l_true[[ep]] <- codePred$true[ind_batch,]
+        l_probs[[ep]] <- lapply(codePred$prob, function(x) x[ind_batch,])
+        
+      } # end for: estpoints
+      
+      
+      # Combine predictions
+      preds <- do.call(rbind, l_preds)
+      probs <- l_probs
+      true <- do.call(rbind, l_true)
+      
+      
+      # ----- Calculate Errors (as in stationary case, actually) -----
+      
+      # # Errors Continuous
+      # l_errors_con <- list()
+      # if(!is.null(l_errorCon)) {
+      #   for(e in 1:length(l_errorCon)) {
+      #     v_errors <- rep(NA, p)
+      #     for(j in 1:p)  if(type[j] != 'c')  v_errors[j] <- l_errorCon[[e]](TrueAll[, j], PredAll[, j])
+      #     l_errors_con[[e]] <- v_errors
+      #   }
+      #   names(l_errors_con) <- names(l_errorCon)
+      # }
+      # 
+      # # Errors Categorical
+      # l_errors_cat <- list()
+      # if(!is.null(l_errorCat)) {
+      #   for(e in 1:length(l_errorCat)) {
+      #     v_errors <- rep(NA, p)
+      #     for(j in 1:p)  if(type[j] == 'c')  v_errors[j] <- l_errorCat[[e]](TrueAll[, j], PredAll[, j])
+      #     l_errors_cat[[e]] <- v_errors
+      #   }
+      #   names(l_errors_cat) <- names(l_errorCat)
+      # }
+      
+
+    } # end if: tvMethod closestModel?
+    
+    
+  } # end if: time-varying?
+  
+  
+  # ---------- Compute Nodewise Errors ----------
+  
+  # input: true and preds!
+  
+  # Errors Continuous
+  l_errors_con <- list()
+  if(!is.null(l_errorCon)) {
+    for(e in 1:length(l_errorCon)) {
+      v_errors <- rep(NA, p)
+      for(j in 1:p)  if(type[j] != 'c')  v_errors[j] <- l_errorCon[[e]](true[, j], preds[, j])
+      l_errors_con[[e]] <- v_errors
+    }
+    names(l_errors_con) <- names(l_errorCon)
+  }
+  
+  
+  # Errors Categorical
+  l_errors_cat <- list()
+  if(!is.null(l_errorCat)) {
+    for(e in 1:length(l_errorCat)) {
+      v_errors <- rep(NA, p)
+      for(j in 1:p)  if(type[j] == 'c')  v_errors[j] <- l_errorCat[[e]](true[, j], preds[, j])
+      l_errors_cat[[e]] <- v_errors
+    }
+    names(l_errors_cat) <- names(l_errorCat)
+  }
+  
+  
+  
+  
+  
+  # ---------- Compute Error Table for Output ----------
+  
+  # This commented out code creates an array instead a matrix, with error measures for different time points
+  
+  # if(cobj %in% c('tvmgm', 'tvmvar') & tvMethod=='weighted') {
+  #   
+  #   # ... if time-varying & tvMethod==weighted: array
+  #   
+  #   if(all(c('CC', 'nCC', 'CCmarg') %in% errorCat)) exCCmarg <- 1 else exCCmarg <- 0
+  #   
+  #   ea <- array(0, dim = c(p, 1+length(l_errorCon)+length(l_errorCat)+exCCmarg, n_estpoints))
+  #   ea[, 1,] <- 1:p
+  #   if(length(l_errors_cat) == 0) names_cat <- NULL else names_cat <- paste0('Error.', names(l_errors_cat))
+  #   if(length(l_errors_con) == 0) names_con <- NULL else names_con <- paste0('Error.', names(l_errors_con))
+  #   
+  #   if(length(l_errors_con) > 0) for(ep in 1:n_estpoints) ea[,2:(1+length(l_errorCon)), ep] <- round(do.call(cbind, l_errors_ep_con[[ep]]),3)
+  #   if(length(l_errors_cat) > 0) for(ep in 1:n_estpoints) ea[,(2+length(l_errorCon)):(length(l_errorCat)+length(l_errorCon)+1), ep] <- round(do.call(cbind, l_errors_ep_cat[[ep]]),3)
+  #   
+  #   if(all(c('CC', 'nCC', 'CCmarg') %in% errorCat)) dimnames(ea)[[2]] <- c('Variable', names_con, names_cat, 'CCmarg') else dimnames(ea)[[2]] <- c('Variable', names_con, names_cat)
+  #   
+  #   
+  #   # Intercept performance for categoricals
+  #   if(all(c('CC', 'nCC', 'CCmarg') %in% errorCat)) {
+  #     
+  #     for(ep in 1:n_estpoints) {
+  #       CCmarg <- rep(NA, p)
+  #       CC <- ea[ , which(colnames(ea) =='Error.CC'), ep]
+  #       nCC <- ea[ , which(colnames(ea) =='Error.nCC'), ep]
+  #       for(j in which(type=='c')) CCmarg[j] <- (nCC[j] - CC[j]) / (nCC[j] - 1)
+  #       
+  #       ea[, dim(ea)[2], ep] <- round(CCmarg, 3)
+  #     }
+  #   }
+  #   
+  #   predObj$errors <- ea
+  #   
+  #   
+  # } else {
+  
+  
+  # get colnames if available, otherwise fill in 1:p
+  if(is.null(colnames(data))) {
+    cnames <- 1:p
+  } else {
+    cnames <- colnames(data)
+  }
+  
+  # create matrix with errords depending on specified errors
+  ea <- matrix(0, nrow = p, ncol = 1+length(l_errorCon)+length(l_errorCat))
+  ea[, 1] <- cnames
+  if(length(l_errors_cat) == 0) names_cat <- NULL else names_cat <- paste0('Error.', names(l_errors_cat))
+  if(length(l_errors_con) == 0) names_con <- NULL else names_con <- paste0('Error.', names(l_errors_con))
+  dimnames(ea)[[2]] <- c('Variable', names_con, names_cat)
+  
+  if(length(l_errors_con) > 0) ea[,2:(1+length(l_errorCon))] <- round(do.call(cbind, l_errors_con),3)
+  if(length(l_errors_cat) > 0)  ea[,(2+length(l_errorCon)):(length(l_errorCat)+length(l_errorCon)+1)] <- round(do.call(cbind, l_errors_cat),3)
+  
+  # Intercept performance for categoricals
+  if(all(c('CC', 'nCC', 'CCmarg') %in% errorCat)) {
+    
+    CCmarg <- rep(NA, p)
+    CC <- ea[ , which(colnames(ea) =='Error.CC')]
+    nCC <- ea[ , which(colnames(ea) =='Error.nCC')]
+    for(j in which(type=='c')) CCmarg[j] <- (nCC[j] - CC[j]) / (nCC[j] - 1)
+    
+    ea <- cbind(ea, round(CCmarg, 3))
+    dimnames(ea)[[2]][dim(ea)[2]] <- 'CCmarg'
+  }
+  
+  ea <- as.data.frame(ea)
+  
+  predObj$errors <- ea
+  
+  # }
+  
+  
+  # ---------- Prepare Remaining Output ----------
+  
+  predObj$predicted <- preds
+  predObj$probabilties <- probs
+  predObj$true <- true
+  
+  
+  # ---------- Output ----------
+  
+  class(predObj) <- c(cobj, 'predicted')
+  
+  return(predObj)
+  
+  
+} # eoF
+
+
+
+
+
