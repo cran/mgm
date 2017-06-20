@@ -170,7 +170,9 @@ mvar <- function(data,         # n x p data matrix
   # ----- Split up predictor Sets by lags -----
 
   # Divide Data in several parts: one response set, and one set of each lag
-  data_lagged <- lagData(data, lags, consec)
+  data_lagged <- lagData(data = data, 
+                          lags = lags, 
+                         consec = consec)
 
   data_response <- data_lagged$data_response
   l_data_lags <- data_lagged$l_data_lags

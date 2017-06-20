@@ -1,4 +1,7 @@
 
+Changes in Version 1.2-1
+  o Added consec argument to predict.mgm(), which allows prediction for VAR models in time series with unequal time intervals by excluding time points that are not preceded by enough measurements (see ?mvar)
+
 Changes in Version 1.2-0
   o The whole package has been rewritten from scratch to reduce susceptibility to bugs and to allow new features
   o Every function now has many input checks and associated informative error messages
