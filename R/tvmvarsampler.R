@@ -15,8 +15,6 @@ tvmvarsampler <- function(coefarray, # v x v2 x cat(v) x cat(v2) x lag array x N
 
   # ---------- Input Checks ----------
 
-  # ---------- Input Checks ----------
-
   # Does coefarray have the right dimensions?
   if(length(dim(coefarray))!=6) stop('coefarray has to have 5 dimensions: p x p x max(level) x max(level) x n_lags x N.')
   if(dim(coefarray)[5] != length(lags)) stop('Dimensions for lags in coefarray have to match the number of lags specified in lags.')
@@ -26,7 +24,14 @@ tvmvarsampler <- function(coefarray, # v x v2 x cat(v) x cat(v2) x lag array x N
   if(dim(coefarray)[1] != length(level)) stop('Dimensions for variables in coefarray have to match the number of specified levels.')
   if(dim(coefarray)[1] != dim(coefarray)[2]) stop('The first two dimensions specifying the cross-lagged effects in coefarray have to have the same dimensionality.')
 
+  if(class(thresholds) != 'list') stop('The thresholds have to be provided via a list with p entries. See ?tvmvarsampler')
+  if(class(sds) != 'matrix') stop('The standard deviations of Gaussian variables have to be provided via a p x n matrix.')
+  
 
+  # ---------- Fill in Defaults ----------
+  
+  if(missing(pbar)) pbar <- TRUE
+  
 
   # ---------- Create Output Object & copy the call ----------
 
@@ -80,7 +85,12 @@ tvmvarsampler <- function(coefarray, # v x v2 x cat(v) x cat(v2) x lag array x N
       if(type[v] != 'c') {
 
         # Get design matrix
-        design_mat <- ModelMatrix(data, type, level, labels, d=1)
+        design_mat <- ModelMatrix(data = data, 
+                                  type = type, 
+                                  level = level, 
+                                  labels = labels, 
+                                  d = 1, 
+                                  allCats=TRUE)
 
         potential_lag <- list()
         for(lag in 1:n_lags) {
@@ -107,7 +117,12 @@ tvmvarsampler <- function(coefarray, # v x v2 x cat(v) x cat(v2) x lag array x N
       if(type[v] == 'c') {
 
         # Get design matrix
-        design_mat <- ModelMatrix(data, type, level, labels, d=1)
+        design_mat <- ModelMatrix(data = data, 
+                                  type = type, 
+                                  level = level, 
+                                  labels = labels, 
+                                  d = 1, 
+                                  allCats=TRUE)
 
         # Loop over categories
         l_potentials <- list()

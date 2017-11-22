@@ -43,6 +43,8 @@ tvmvar <- function(data,         # n x p data matrix
   if(is.null(args$overparameterize)) args$overparameterize <- FALSE
   if(is.null(args$signInfo)) args$signInfo <- TRUE
   
+  if(is.null(args$weights)) args$weights <- rep(1, nrow(data))
+  
   if(missing(level)) level <- NULL
   
   if(args$verbatim) args$pbar <- FALSE
@@ -76,6 +78,9 @@ tvmvar <- function(data,         # n x p data matrix
                              'bandwidth' = bandwidth,
                              'lags' = args$lags,
                              'consec' = args$consec,
+                             'dayvar' = args$dayvar,
+                             'beepvar' = args$beepvar,
+                             'weights' = args$weights,
                              'lambdaSeq' = args$lambdaSeq,
                              'lambdaSel' = args$lambdaSel,
                              'lambdaFolds' = args$lambdaFolds,
@@ -98,33 +103,33 @@ tvmvar <- function(data,         # n x p data matrix
   
   if(args$saveData) tvmvar_object$call$data <- data
   
+  # ----- Input Checks & compute Aux Variables -----
   
-  # ----- Compute Aux Variables -----
-  
+  if(is.null(lags))  stop('No lags specified. See ?mvar.')
   n <- nrow(data)
-  n_var <- n - max(lags) # this is how many rows there are after transforming the data
   p <- ncol(data)
+  n_var <- n - max(lags) # this is how many rows there are after transforming the data
   
-  
-  # ----- Checks on estpoints and bandwidth -----
-  
-  if(any(estpoints < 0)) stop('Estimation have to bepositive')
+  if(any(estpoints < 0)) stop('Estimation have to be positive')
   if(any(estpoints>n_var)) stop('Estimation points have to be on scale [0, n - max(lags)]')
   if(bandwidth <= 0) stop('The bandwidth parameter has to be strictly positive')
   
   
   # -------------------- Compute Weightings -------------------
+
   
   # Define time vector: if not provided, assume equally spaced time points
   if(missing(timepoints)) {
     timevec <- seq(0, 1, length = n_var)
+    tvmvar_object$call$timepoints <- seq(0, 1, length = n) # included for the case when reusing call in resample()
   } else {
+    tvmvar_object$call$timepoints <- timepoints
     # normalize to [0,1]
     timepoints <- timepoints[-(1:max(lags))] # delete first x rows that have to be exluded by definition of VAR model
     timepoints <- timepoints - min(timepoints)
     timevec <- timepoints / max(timepoints)
   }
-  tvmvar_object$call$timepoints <- timevec
+  tvmvar_object$call$timepoints_cut <- timevec
   
   
   # Normalize time estimation points to interval [0,1]
@@ -148,6 +153,8 @@ tvmvar <- function(data,         # n x p data matrix
     }
   } # end for:i (estpoints)
   
+  # browser()
+  
   
   # -------------------- Loop over Estpoints -------------------
   
@@ -158,6 +165,8 @@ tvmvar <- function(data,         # n x p data matrix
   l_mvar_models <- list()
   
   for(i in 1:no_estpoints) {
+    
+    # browser()
     
     l_mvar_models[[i]] <- mvar(data = data,
                                type = type,
@@ -172,6 +181,8 @@ tvmvar <- function(data,         # n x p data matrix
                                alphaGam = args$alphaGam,
                                lags = args$lags,
                                consec = args$consec,
+                               beepvar = args$beepvar,
+                               dayvar = args$dayvar,
                                weights = l_weights[[i]],
                                threshold = args$threshold,
                                method = args$method,
@@ -183,7 +194,9 @@ tvmvar <- function(data,         # n x p data matrix
                                saveModels = args$saveModels,
                                saveData = args$saveData,
                                overparameterize = args$overparameterize,
-                               signInfo = FALSE) # to avoid msg for each model
+                               signInfo = FALSE, # to avoid msg for each model
+                               bootstrap = args$bootstrap,
+                               boot_ind = args$boot_ind) 
     
     # Update Progress Bar
     if(args$pbar==TRUE) setTxtProgressBar(pb, i)
@@ -222,14 +235,13 @@ tvmvar <- function(data,         # n x p data matrix
   tvmvar_object$signs <- a_signs
   tvmvar_object$edgecolor <- a_edgecolor
   
-  
   # Compute effectively used Sample size (relative to n)
   Ne <- lapply(l_weights, sum)
   tvmvar_object$Ne <- unlist(Ne)
   
   
   # Copy lagged Data if saveData == TRUE (take from first time point, because always the same)
-  if(args$saveData) tvmvar_object$call$data_lagged <-  l_mvar_models[[1]]$call$data_lagged
+  tvmvar_object$call$data_lagged <-  l_mvar_models[[1]]$call$data_lagged
   
   
   # -------------------- Output -------------------

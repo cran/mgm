@@ -37,11 +37,14 @@ mgm <- function(data,         # n x p data matrix
   
   p <- ncol(data)
   n <- nrow(data)
+  data <- as.matrix(data)
   
   # Give Names to variables (Needed to use formula to construct design matrix and to give informative error messages)
   colnames(data)[1:p] <- paste("V", 1:p, '.', sep = "")
   # colnames(data)[type == 'c'] <- paste("V", (1:p)[type == 'c'], '.', sep = "") # dot deliminator for categorical variables; needed to identify parameters assiciated with some k-order interaction below
   
+  # Catch other passed on arguments
+  args <- list(...)
   
   # ----- Fill in Defaults -----
   
@@ -58,7 +61,15 @@ mgm <- function(data,         # n x p data matrix
   if(missing(weights)) weights <- rep(1, n)
   if(missing(threshold)) threshold <- 'LW'
   if(missing(method)) method <- 'glm'
-  if(missing(binarySign)) binarySign <- FALSE
+  if(missing(binarySign)) {
+    if(!is.null(args$binary.sign)) binarySign <- args$binary.sign else binarySign <- FALSE
+  }
+  
+  if(!is.null(args$binary.sign)) {
+    warning("The argument 'binary.sign' is deprecated Use 'binarySign' instead.")
+  }
+  
+
   if(missing(scale)) scale <- TRUE
   if(missing(verbatim)) verbatim <- FALSE
   if(missing(pbar)) pbar <- TRUE
@@ -111,25 +122,25 @@ mgm <- function(data,         # n x p data matrix
   
   # ----- Basic Checks -----
   
-  if(!(threshold %in% c('none', 'LW', 'HW'))) stop('Please select one of the three threshold options "HW", "LW" and "none" ')
-  
+  # Checks on data
+  # if(!is.matrix(data)) stop('The data has to be provided as a n x p matrix (no data.frame)')
   if(nrow(data) < 2) ('The data matrix has to have at least 2 rows.')
-  
+  if(any(!(apply(data, 2, class) %in% c('numeric', 'integer')))) stop('Only integer and numeric values permitted.')
   if(missing(data)) stop('No data provided.')
+  if(any(!is.finite(as.matrix(data)))) stop('No infinite values permitted.')
+  if(any(is.na(data))) stop('No missing values permitted.')
+  
+  
+  # Checks on other arguments
+  if(!(threshold %in% c('none', 'LW', 'HW'))) stop('Please select one of the three threshold options "HW", "LW" and "none" ')
   if(k<2) stop('The order of interactions should be at least k = 2 (pairwise interactions)')
   if(ncol(data)<3) stop('At least 3 variables required')
   if(missing(type)) stop('No type vector provided.')
-  
   if(sum(!(type %in% c('g', 'c', 'p')))>0) stop("Only Gaussian 'g', Poisson 'p' or categorical 'c' variables permitted.")
-  if(any(is.na(data))) stop('No missing values permitted.')
-  if(any(!is.finite(as.matrix(data)))) stop('No infinite values permitted.')
-  
-  
-  if(any(!(apply(data, 2, class) %in% c('numeric', 'integer')))) stop('Only integer and numeric values permitted.')
-  
   if(ncol(data) != length(type)) stop('Number of variables is not equal to length of type vector.')
   if(!missing(level)) if(ncol(data) != length(level)) stop('Number of variables is not equal to length of level vector.')
   if(nrow(data) != length(weights)) stop('Number of observations is not equal to length of weights vector.')
+  
   
   # Are Poisson variables integers?
   if('p' %in% type) {
@@ -196,6 +207,7 @@ mgm <- function(data,         # n x p data matrix
   mgmobj$call <- list('data' = NULL,
                       'type' = type,
                       'level' = level,
+                      "levelNames" = NULL,
                       'lambdaSeq' = lambdaSeq,
                       'lambdaSel' = lambdaSel,
                       'lambdaFolds' = lambdaFolds,
@@ -229,6 +241,7 @@ mgm <- function(data,         # n x p data matrix
   for(i in which(type=='c')) data[, i] <- as.factor(data[, i])
   
   # -------------------- Estimation -------------------
+
   
   # Progress bar
   if(pbar==TRUE) pb <- txtProgressBar(min = 0, max=p, initial=0, char="-", style = 3)
@@ -258,6 +271,7 @@ mgm <- function(data,         # n x p data matrix
                             level = level[-v],
                             labels = colnames(data)[-v],
                             d = d)
+      
       X <- X_over
     } else {
       X <- X_standard
@@ -349,6 +363,8 @@ mgm <- function(data,         # n x p data matrix
         
         alpha_select <- alphaSeq[which.min(v_mean_OOS_deviance)]
         
+        
+        # If there is no search for alpha, goes continue and use default alpha
       } else {
         
         alpha_select <- alphaSeq # in case alpha is just specified
@@ -356,6 +372,8 @@ mgm <- function(data,         # n x p data matrix
       }
       
       # Refit Model on whole data, with selected alpha
+      
+      # browser()
       
       model <- nodeEst(y = y,
                        X = X,
@@ -376,8 +394,7 @@ mgm <- function(data,         # n x p data matrix
       mgmobj$nodemodels[[v]] <- model
       
     }
-    
-    
+
     
     # alpha Section via EBIC
     
@@ -577,6 +594,7 @@ mgm <- function(data,         # n x p data matrix
     
   } # end for: v
   
+  # browser()
   
   
   
@@ -682,6 +700,7 @@ mgm <- function(data,         # n x p data matrix
           
           # if(sum(pair == c(1,3))==2) browser()
           
+          
           int_sign <- getSign(l_w_ind,
                               l_w_par,
                               type,
@@ -689,6 +708,7 @@ mgm <- function(data,         # n x p data matrix
                               overparameterize,
                               ord)
           
+
         } else {
           int_sign <- 0 # if not defined (set_signdefined): 0
         }
@@ -827,6 +847,13 @@ mgm <- function(data,         # n x p data matrix
     if(signInfo) cat('Note that the sign of parameter estimates is stored separately; see ?mgm')    
   }
   
+  # Return level names (used in showInteraction())
+  levelNames <- list()
+  for(i in 1:p) {
+    if(type[i] == "c") levelNames[[i]] <- sort(as.numeric(as.character(unique(data[, i])))) else levelNames[[i]] <- NA
+  }
+  
+  mgmobj$call$levelNames <- levelNames
   
   # Assign class
   class(mgmobj) <- c('mgm', 'core')

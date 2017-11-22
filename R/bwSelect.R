@@ -7,6 +7,7 @@ bwSelect <- function(data,
                      bwFolds, # number of training rounds (or folds in CV)
                      bwFoldsize, # should default to n_var / bwFolds (then proper stratified CV, but very slow for big datasets)
                      modeltype,
+                     pbar,
                      ... # arguments for mvar, passed through by tvmar
 )
 
@@ -41,11 +42,9 @@ bwSelect <- function(data,
 
   if(missing(bwFolds)) bwFolds <- NULL
   if(missing(bwFoldsize)) bwFoldsize <- NULL
-
+  if(missing(pbar)) pbar <- TRUE
   if(is.null(args$saveData)) args$saveData <- FALSE
-
-  if(modeltype == 'mgm') if(is.null(args$overparameterize)) args$overparameterize <- TRUE
-  if(modeltype == 'mgm') if(is.null(args$overparameterize)) args$overparameterize <- FALSE
+  if(is.null(args$overparameterize)) args$overparameterize <- FALSE
 
 
   # ----- Compute Aux Variables -----
@@ -81,7 +80,8 @@ bwSelect <- function(data,
                            'bwSeq' = bwSeq,
                            'bwFolds' = bwFolds,
                            'bwFoldsize' = bwFoldsize,
-                           'modeltype' = modeltype)
+                           'modeltype' = modeltype,
+                           'pbar' = pbar)
 
 
   if(args$saveData) bwSelectObj$call$data <- data
@@ -90,9 +90,9 @@ bwSelect <- function(data,
 
   # ----- Progress Bar Business -----
 
-  if(is.null(args$pbar)) args$pbar <- TRUE
+  # if(is.null(args$pbar)) args$pbar <- TRUE
   # Set up Progress bar
-  if(args$pbar==TRUE) pb_bw <- txtProgressBar(min = 0, max = n_bw, initial = 0, char="-", style = 3)
+  if(pbar==TRUE) pb_bw <- txtProgressBar(min = 0, max = n_bw, initial = 0, char="-", style = 3)
 
   # -------------------- Estimate Path -------------------
 
@@ -171,6 +171,8 @@ bwSelect <- function(data,
     # Storage
     l_performance <- list()
     l_bw_models <- list()
+    
+    
 
     for(i in 1:n_bw) {
 
@@ -191,7 +193,7 @@ bwSelect <- function(data,
                                        saveModels = TRUE, # otherwise we can't make any predictions
                                        signInfo = FALSE,
                                        ...)
-
+        
         # Make Predictions at test-locations
         l_foldPerform[[fold]] <- bwSelPredict(data = data,
                                               type = type,
@@ -202,6 +204,8 @@ bwSelect <- function(data,
                                               modeltype = modeltype,
                                               overparameterize = args$overparameterize,
                                               ...)
+        
+        # browser()
 
       }
 
@@ -213,7 +217,7 @@ bwSelect <- function(data,
 
 
       # Update Progress Bar
-      if(args$pbar==TRUE) setTxtProgressBar(pb_bw, i)
+      if(pbar==TRUE) setTxtProgressBar(pb_bw, i)
 
     }
 

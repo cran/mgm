@@ -64,23 +64,26 @@ Jonas Haslbeck <jonashaslbeck@gmail.com>
 \dontrun{
 
 
-# a) Set up mvar model
+## Generate data from mixed VAR model using mvarsampler() and recover model using mvar()
+
+# 1) Define mVAR model
 
 p <- 6 # Six variables
 type <- c('c', 'c', 'c', 'c', 'g', 'g') # 4 categorical, 2 gaussians
-level <- c(2, 2, 4, 4, 1, 1) # 2 categoricals with 2 categories, 2 with 5
+level <- c(2, 2, 4, 4, 1, 1) # 2 categoricals with m=2, 2 categoricals with m=4, two continuous
 max_level <- max(level)
 
 lags <- c(1, 3, 9) # include lagged effects of order 1, 3, 9
 n_lags <- length(lags)
 
 # Specify thresholds
-thresholds[[1]] <- c(0, 0)
-thresholds[[2]] <- c(0, 0)
-thresholds[[3]] <- c(0, 0, 0, 0)
-thresholds[[4]] <- c(0, 0, 0, 0)
-thresholds[[5]] <- c(0)
-thresholds[[6]] <- c(0)
+thresholds <- list()
+thresholds[[1]] <- rep(0, level[1])
+thresholds[[2]] <- rep(0, level[2])
+thresholds[[3]] <- rep(0, level[3])
+thresholds[[4]] <- rep(0, level[4])
+thresholds[[5]] <- rep(0, level[5])
+thresholds[[6]] <- rep(0, level[6])
 
 # Specify standard deviations for the Gaussians
 sds <- rep(NULL, p)
@@ -100,7 +103,7 @@ coefarray[1, 3, 1:level[2], 1:level[4], 1] <- m1
 coefarray[1, 5, 1:level[1], 1:level[5], 3] <- c(0, 1)
 
 
-# b) Sample
+# 2) Sample
 set.seed(1)
 dlist <- mvarsampler(coefarray = coefarray,
                      lags = lags,
@@ -111,20 +114,20 @@ dlist <- mvarsampler(coefarray = coefarray,
                      N = 200,
                      pbar = TRUE)
 
-
-
-# c) Recover
+# 3) Recover
 set.seed(1)
 mvar_obj <- mvar(data = dlist$data,
                  type = type,
                  level = level,
                  lambdaSel = 'CV',
-                 lags = c(1, 3, 9))
+                 lags = c(1, 3, 9),
+                 signInfo = FALSE,
+                 overparameterize = F)
 
 # Did we recover the true parameters?
-mvar_obj$wadj[5, 6, 2] # yes
-mvar_obj$wadj[1, 3, 1] # yes
-mvar_obj$wadj[1, 5, 3] # yes
+mvar_obj$wadj[5, 6, 2] # cross-lagged effect of 6 on 2 over lag lags[2]
+mvar_obj$wadj[1, 3, 1] # cross-lagged effect of 3 on 1 over lag lags[1]
+mvar_obj$wadj[1, 5, 3] # cross-lagged effect of 1 on 5 over lag lags[3]
 
 
 }

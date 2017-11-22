@@ -11,7 +11,8 @@ glmnetRequirements <- function(data,
   var_check <- apply(data, 2, var)
   ind_zero_var <- which(var_check == 0)
   if(length(ind_zero_var) > 0) stop(paste0('Please only provide variables with nonzero variance. Variable(s) with zero variance: ',paste(var_names[ind_zero_var], collapse = ', ')))
-
+  
+  
   # 2) >1 events per category
   if('c' %in% type) {
     ind_cat <- which(type == 'c')
@@ -28,6 +29,7 @@ glmnetRequirements <- function(data,
       stop(paste0('At least 2 events required for each category. Requirement not met for variable(s): ',paste(var_names[ind_cat[ind_check1]], collapse = ', ')))
     }
   }
+  
 
   # 3) For each category: p(K=l) > 10^-5
   if('c' %in% type) {
@@ -42,12 +44,19 @@ glmnetRequirements <- function(data,
       return(v_wfrq)
     }
 
+    
     ind_cat <- which(type == 'c')
     check2 <- rep(NA, length(ind_cat))
     for(i in 1:length(ind_cat)) check2[i] <- min(wtable(data[,ind_cat[i]], weights)) < 10^-5 # smaller = error
     if(sum(check2)>0) stop(paste0('Each category has to have probability > 10^-5. Requirement not met for variable(s): ',paste(var_names[ind_cat[check2]], collapse = ', ')))
 
   }
+  
 
 
 }
+
+
+
+
+
