@@ -12,6 +12,7 @@ mgm <- function(data,         # n x p data matrix
                 alphaFolds,   # number of folds if alphaSel = 'CV'
                 alphaGam,     # EBIC hyperparameter gamma, if alphaSel = 'EBIC',
                 k,            # order of modeled interactions, 1 = pairwise
+                moderators,   # Vector specifying first-order moderators to be included in the model
                 ruleReg,      # rule to combine d+1 neighborhood estimates (defaults to 'AND')
                 weights,      # p vector of observation weights for weighted regression
                 threshold,    # defaults to 'LW', see helpfile
@@ -24,14 +25,16 @@ mgm <- function(data,         # n x p data matrix
                 saveModels,   # defaults to TRUE, saves all estimated models
                 saveData,     # defaults to FALSE, saves the data, =TRUE makes sense for easier prediction routine in predict.mgm()
                 overparameterize, # if TRUE, uses the over-parameterized version,
+                thresholdCat, # TRUE if overparameterize=FALSE; FALSE if overparamterize=TRUE; this argument overwrites this
                 signInfo,
                 ...
 )
 
-
 {
   
-  # -------------------- Input Checks -------------------
+  # --------------------------------------------------------------------------------------------
+  # -------------------- Input Checks ----------------------------------------------------------
+  # --------------------------------------------------------------------------------------------
   
   # ----- Compute Auxilliary Variables I -----
   
@@ -57,6 +60,7 @@ mgm <- function(data,         # n x p data matrix
   if(missing(alphaFolds)) alphaFolds <- 10
   if(missing(alphaGam)) alphaGam <- .25
   if(missing(k)) k <- 2
+  if(missing(moderators)) moderators <- NULL
   if(missing(ruleReg)) ruleReg <- 'AND'
   if(missing(weights)) weights <- rep(1, n)
   if(missing(threshold)) threshold <- 'LW'
@@ -69,7 +73,7 @@ mgm <- function(data,         # n x p data matrix
     warning("The argument 'binary.sign' is deprecated Use 'binarySign' instead.")
   }
   
-
+  
   if(missing(scale)) scale <- TRUE
   if(missing(verbatim)) verbatim <- FALSE
   if(missing(pbar)) pbar <- TRUE
@@ -78,7 +82,7 @@ mgm <- function(data,         # n x p data matrix
   if(missing(saveData)) saveData <- FALSE
   if(missing(overparameterize)) overparameterize <- FALSE
   if(missing(signInfo)) signInfo <- TRUE
-  
+  if(missing(thresholdCat)) if(overparameterize) thresholdCat <- TRUE else thresholdCat <- TRUE # always better
   
   if(verbatim) pbar <- FALSE
   if(verbatim) warnings <- FALSE
@@ -89,10 +93,22 @@ mgm <- function(data,         # n x p data matrix
     options(warn = -1)
   }
   
+  # ----- Basic Checks I -----
   
+  # Checks on data
+  if(nrow(data) < 2) ('The data matrix has to have at least 2 rows.')
+  if(any(!(apply(data, 2, class) %in% c('numeric', 'integer')))) stop('Only integer and numeric values permitted.')
+  if(missing(data)) stop('No data provided.')
+  if(any(!is.finite(as.matrix(data)))) stop('No infinite values permitted.')
+  if(any(is.na(data))) stop('No missing values permitted.')
+  
+  # Checks on moderators
+  if(!is.null(moderators)) {
+    if(!all(moderators == round(moderators))) stop("Moderators have to be specified as integers mapping to the column numbers of variables in the data set.")
+    if(!all(moderators %in% 1:p)) stop("Specified moderators are larger than number of variables in the data.")
+  }
   
   # ----- Compute Auxilliary Variables II -----
-  
   
   # From k to d
   d <- k - 1 # k = largest order of interaction in joint model; d = largest neighborhood size
@@ -120,16 +136,8 @@ mgm <- function(data,         # n x p data matrix
   if(scale) for(i in ind_Gauss) data[, i] <- scale(data[, i])
   
   
-  # ----- Basic Checks -----
   
-  # Checks on data
-  # if(!is.matrix(data)) stop('The data has to be provided as a n x p matrix (no data.frame)')
-  if(nrow(data) < 2) ('The data matrix has to have at least 2 rows.')
-  if(any(!(apply(data, 2, class) %in% c('numeric', 'integer')))) stop('Only integer and numeric values permitted.')
-  if(missing(data)) stop('No data provided.')
-  if(any(!is.finite(as.matrix(data)))) stop('No infinite values permitted.')
-  if(any(is.na(data))) stop('No missing values permitted.')
-  
+  # ----- Basic Checks II -----
   
   # Checks on other arguments
   if(!(threshold %in% c('none', 'LW', 'HW'))) stop('Please select one of the three threshold options "HW", "LW" and "none" ')
@@ -140,7 +148,7 @@ mgm <- function(data,         # n x p data matrix
   if(ncol(data) != length(type)) stop('Number of variables is not equal to length of type vector.')
   if(!missing(level)) if(ncol(data) != length(level)) stop('Number of variables is not equal to length of level vector.')
   if(nrow(data) != length(weights)) stop('Number of observations is not equal to length of weights vector.')
-  
+  if(!is.null(moderators) & k > 2) stop("Moderator specification is only implemented for first-order moderators. See ?mgm")
   
   # Are Poisson variables integers?
   if('p' %in% type) {
@@ -150,6 +158,7 @@ mgm <- function(data,         # n x p data matrix
     for(i in 1:nPois) v_PoisCheck[i] <- sum(data[, ind_Pois[i]] != round(data[, ind_Pois[i]])) > 0
     if(sum(v_PoisCheck) > 0) stop('Only integers permitted for Poisson variables.')
   }
+  
   
   # ----- Checking glmnet minimum Variance requirements -----
   
@@ -162,8 +171,6 @@ mgm <- function(data,         # n x p data matrix
   # ----- Binary Sign => values have to be in {0,1} -----
   
   # compute anyway, because used later for sign extraction
-  
-  # browser()
   
   # Find the binary variables
   ind_cat <- which(type == 'c')
@@ -183,20 +190,25 @@ mgm <- function(data,         # n x p data matrix
     }
   }
   
+  
+  # --------------------------------------------------------------------------------------------
+  # -------------------- Create Output Objects -------------------------------------------------
+  # --------------------------------------------------------------------------------------------
+  
+  
   # ----- Storage: Create empty mgm object -----
   
   mgmobj <- list('call' = NULL,
                  'pairwise' = list('wadj' = NULL,
                                    'signs' = NULL,
-                                   'edgecolor'= NULL),
-                 'factorgraph' = list('graph' = NULL,
-                                      'signs' = NULL,
-                                      'edgecolor' = NULL,
-                                      'order' = NULL),
-                 'rawfactor' = list('indicator' = NULL,
-                                    'weightsAgg' = NULL,
-                                    'weights' = NULL,
-                                    'signs' = NULL),
+                                   'edgecolor'= NULL, 
+                                   "wadjNodewise" = NULL,
+                                   "signsNodewise" = NULL,
+                                   "edgecolorNodewise" = NULL),
+                 'interactions' = list('indicator' = NULL,
+                                       'weightsAgg' = NULL,
+                                       'weights' = NULL,
+                                       'signs' = NULL),
                  'intercepts' = NULL,
                  'nodemodels' = list())
   
@@ -217,6 +229,7 @@ mgm <- function(data,         # n x p data matrix
                       'alphaFolds' = alphaFolds,
                       'alphaGam' = alphaGam,
                       'k' = k,
+                      "moderators" = moderators, 
                       'ruleReg' = ruleReg,
                       'weights' = weights,
                       'threshold' = threshold,
@@ -228,7 +241,9 @@ mgm <- function(data,         # n x p data matrix
                       'warnings' = warnings,
                       'saveModels' = saveModels,
                       'saveData' = saveData,
-                      'overparameterize' = overparameterize)
+                      'overparameterize' = overparameterize,
+                      "thresholdCat" = thresholdCat,
+                      "signInfo" = signInfo)
   
   if(saveData) mgmobj$call$data <- data
   
@@ -240,45 +255,65 @@ mgm <- function(data,         # n x p data matrix
   # Categoricals into factors (Needed to use formula to construct design matrix)
   for(i in which(type=='c')) data[, i] <- as.factor(data[, i])
   
-  # -------------------- Estimation -------------------
-
+  
+  # --------------------------------------------------------------------------------------------
+  # -------------------- Nodewise Estimation ---------------------------------------------------
+  # --------------------------------------------------------------------------------------------
+  
   
   # Progress bar
   if(pbar==TRUE) pb <- txtProgressBar(min = 0, max=p, initial=0, char="-", style = 3)
   
   # Save number of parameters of standard (non-overparameterized) design matrices for tau threshold
   npar_standard <- rep(NA, p)
+  l_mods_ind <- list() # collect moderator terms for later output-processing
   
   for(v in 1:p) {
     
     # ----- Construct Design Matrix -----
     
-    if(d > (p - 1)) {
-      stop("Order of interactions cannot be larger than the number of predictors.")
-    } else if (d == 1){ form <- as.formula(paste(colnames(data)[v],"~ (.)"))
-    } else { form <- as.formula(paste(colnames(data)[v],"~ (.)^",d)) }
+    X_standard <- X <- ModelMatrix_standard(data = data,
+                                            type = type,
+                                            d = d, 
+                                            v = v, 
+                                            moderators = moderators)
     
-    # Construct standard design matrix (to get number of parameters for tau threshold)
-    X_standard <- model.matrix(form, data = data)[, -1] # delete intercept (added by glmnet later)
     npar_standard[v] <- ncol(X_standard)
     
     
     if(overparameterize) {
       
-      # Construct over-parameterized design matrix
-      X_over <- ModelMatrix(data = data[, -v],
-                            type = type[-v],
-                            level = level[-v],
-                            labels = colnames(data)[-v],
-                            d = d)
+      X_over <- ModelMatrix(data = data, # fix that input, that's stupid
+                            type = type,
+                            level = level,
+                            labels = colnames(data),
+                            d = d, 
+                            moderators = moderators,
+                            v = v)
       
       X <- X_over
-    } else {
-      X <- X_standard
+      
+    } # end if: overparameterize?
+    
+
+    ## Scale Gaussian variables AFTER computing design matrix
+    # Compute vector that tell us which interactions are purely consisting of continuous variables?
+    if(scale) {
+      if(any(type == "g")) {
+        cn <- colnames(X)
+        l_ints_split <- strsplit(cn, ":")
+        ind_allc <- unlist(lapply(l_ints_split, function(x) {
+          x2 <- sub("V", "", x)
+          vars <- as.numeric(unlist(lapply(strsplit(x2, "[.]"), function(y) y[1] )))
+          all(type[vars] == "g")
+        }))
+        
+        X[, ind_allc] <- apply(matrix(X[, ind_allc], ncol = sum(ind_allc)), 2, scale)
+      }
     }
     
+    # Response 
     y <- as.numeric(data[, v])
-    
     
     
     # ----- Tuning Parameter Selection (lambda and alpha) -----
@@ -329,7 +364,8 @@ mgm <- function(data,         # n x p data matrix
                                             type = type,
                                             level = level,
                                             emp_lev = emp_lev,
-                                            overparameterize = overparameterize)
+                                            overparameterize = overparameterize,
+                                            thresholdCat = thresholdCat)
             
             
             # Calculte Out-of-sample deviance for current fold
@@ -373,8 +409,6 @@ mgm <- function(data,         # n x p data matrix
       
       # Refit Model on whole data, with selected alpha
       
-      # browser()
-      
       model <- nodeEst(y = y,
                        X = X,
                        lambdaSeq = lambdaSeq,
@@ -389,12 +423,13 @@ mgm <- function(data,         # n x p data matrix
                        type = type,
                        level= level,
                        emp_lev = emp_lev,
-                       overparameterize = overparameterize)
+                       overparameterize = overparameterize,
+                       thresholdCat = thresholdCat)
       
       mgmobj$nodemodels[[v]] <- model
       
     }
-
+    
     
     # alpha Section via EBIC
     
@@ -421,7 +456,8 @@ mgm <- function(data,         # n x p data matrix
                                       type = type,
                                       level = level,
                                       emp_lev = emp_lev, 
-                                      overparameterize = overparameterize)
+                                      overparameterize = overparameterize,
+                                      thresholdCat = thresholdCat)
         
         EBIC_Seq[a] <- l_alphaModels[[a]]$EBIC
         
@@ -441,13 +477,14 @@ mgm <- function(data,         # n x p data matrix
   
   
   
+  
   # -------------------- Processing glmnet Output -------------------
   
   # Input: p regression vectors
-  # Putput: hoo-object, wadj matrix (latter contained in former)
+  # Putput: hoo-object, wadj matrix (latter defined by former)
   
-  Pars_ind <- list()
-  Pars_values <- list()
+  Pars_ind <- list() # storage for interaction-indicators
+  Pars_values <- list() # storage for actual parameters associate for the interactions indexed in Pars_ind
   list_Intercepts <- vector('list', length = p)
   
   for(v in 1:p) {
@@ -461,8 +498,34 @@ mgm <- function(data,         # n x p data matrix
     # A) Indicator Object for all possible interactions: List contains Matrix
     v_Pars_ind <- vector('list', length = d) #  1 = pairwise, 2= threeway, etc.
     
-    # Fill each with empty entries for all possible interactions
-    for(ord in 1:d) v_Pars_ind[[ord]] <- t(combn(predictor_set, ord))
+    ## Create Indicator list for Present interactions (separate for k-order MGM and moderated MGM)
+    if(is.null(moderators)) {
+      
+      # If there are no moderators: All interactions of specified degree (k)
+      for(ord in 1:d) v_Pars_ind[[ord]] <- t(combn(predictor_set, ord))
+      
+    } else {
+      
+      d <- 2
+      
+      v_Pars_ind[[1]] <- matrix(predictor_set, ncol=1) # standard terms
+      
+      if(v %in% moderators) {
+        ind_mods <- t(combn((1:p)[-v], 2)) # if moderator, all combinations of other variables
+      } else {
+        ind_mods <- expand.grid((1:p)[-v], moderators[moderators!=v]) # if not moderator, all variables times 
+      }
+      
+      ind_mods <- ind_mods[!apply(ind_mods, 1, function(x) x[1] == x[2]), ] # remove rows with equal entries
+      v_Pars_ind[[2]] <- ind_mods
+      
+      # no interactions k > 2 allowed, if moderators are specified
+      
+      
+    } # end if: moderators?
+    
+    # Make sure all entries of "v_Pars_ind" are matrices
+    for(j in 1:d) v_Pars_ind[[j]] <- matrix(as.matrix(v_Pars_ind[[j]]), ncol=j)
     
     no_interactions <- unlist(lapply(v_Pars_ind, nrow))
     
@@ -474,9 +537,6 @@ mgm <- function(data,         # n x p data matrix
     
     # separate for categorical/ non-categorical response node, because in former case we predict K categories
     # and hence need a different data structure
-    
-    # browser()
-    
     
     # Categorical Case
     if(type[v] == 'c') {
@@ -500,13 +560,14 @@ mgm <- function(data,         # n x p data matrix
         model_obj_i[abs(model_obj_i) < tau] <- 0 # set all parameter estimates below threshold to zero
         mgmobj$nodemodels[[v]]$tau <- tau # Save tau
         
+        
         for(ord in 1:d) {
           
           part_ord <- model_obj_i[-1][ord == interaction_order] # parameters for interaction of order = ord+1
           gotThemall <- rep(TRUE, length(part_ord)) # sanity check: did I copy all parameters
           int_names_ord <- interaction_names[ord == interaction_order]
           
-          if(no_interactions[ord] != nrow(v_Pars_ind[[ord]])) stop('Fuckup in parameter extraction 1')
+          if(no_interactions[ord] != nrow(v_Pars_ind[[ord]])) stop('Internal Error: Error in parameter extraction type 1')
           
           find_int_dummy <- matrix(NA, nrow = length(int_names_ord), ncol = ord)
           
@@ -514,9 +575,9 @@ mgm <- function(data,         # n x p data matrix
             
             # indicates location of parameters for given interaction
             
-            for(cc in 1:ncol(v_Pars_ind[[ord]])) find_int_dummy[, cc] <- grepl(paste0('V', v_Pars_ind[[ord]][t, cc], '.'), int_names_ord,
-                                                                               int_names_ord,
-                                                                               fixed = TRUE) # not only single chars have to be contained, but exact order)
+            for(cc in 1:ord) find_int_dummy[, cc] <- grepl(paste0('V', v_Pars_ind[[ord]][t, cc], '.'), int_names_ord,
+                                                           int_names_ord,
+                                                           fixed = TRUE) # not only single chars have to be contained, but exact order)
             select_int <- rowSums(find_int_dummy) == ord # because threeway interaction has 2 predictors; ord = order of interactions in joint distribution
             
             # fill in paramters + rownames into list
@@ -528,9 +589,7 @@ mgm <- function(data,         # n x p data matrix
             
           }
           
-          if(sum(gotThemall) > 0) stop('Fuckup in parameter extraction 2')
-          
-          
+          if(sum(gotThemall) > 0) stop('Internal Error: Error in parameter extraction type 2')
           
         } # end for: ord
         
@@ -556,33 +615,36 @@ mgm <- function(data,         # n x p data matrix
       
       for(ord in 1:d) {
         
-        part_ord <- model_obj_i[-1][ord == interaction_order] # parameters for interaction of order = ord
-        gotThemall <- rep(TRUE, length(part_ord)) # sanity check: did I copy all parameters
-        int_names_ord <- interaction_names[ord == interaction_order]
-        
-        if(no_interactions[ord] != nrow(v_Pars_ind[[ord]])) stop('Fuckup in parameter extraction 1')
-        
-        find_int_dummy <- matrix(NA, nrow = length(int_names_ord), ncol = ord)
-        
-        for(t in 1:no_interactions[ord]) {
+        if(no_interactions[ord] > 0) { # can be zero for moderated MGMs
           
-          # indicates location of parameters for given interaction
-          for(cc in 1:ncol(v_Pars_ind[[ord]])) find_int_dummy[, cc] <- grepl(paste0('V', v_Pars_ind[[ord]][t, cc], '.'),
-                                                                             int_names_ord,
-                                                                             fixed = TRUE) # not only single chars have to be contained, but exact order
-          select_int <- rowSums(find_int_dummy) == (ord) # because threeway interaction has 2 predictors; ord = order of interactions in joint distribution
+          part_ord <- model_obj_i[-1][ord == interaction_order] # parameters for interaction of order = ord
+          gotThemall <- rep(TRUE, length(part_ord)) # sanity check: did I copy all parameters
+          int_names_ord <- interaction_names[ord == interaction_order]
           
-          # fill in paramters + rownames into list
-          parmat <- matrix(part_ord[select_int], ncol = 1)
-          rownames(parmat) <- int_names_ord[select_int]
-          v_Pars_values[[ord]][[t]] <- parmat
+          if(no_interactions[ord] != nrow(v_Pars_ind[[ord]])) stop('Fuckup in parameter extraction 1')
           
-          gotThemall[select_int == TRUE] <- FALSE
+          find_int_dummy <- matrix(NA, nrow = length(int_names_ord), ncol = ord)
           
-        }
-        
-        if(sum(gotThemall) > 0) stop('Fuckup in parameter extraction 2')
-        
+          for(t in 1:no_interactions[ord]) {
+            
+            # indicates location of parameters for given interaction
+            for(cc in 1:ord) find_int_dummy[, cc] <- grepl(paste0('V', v_Pars_ind[[ord]][t, cc], '.'),
+                                                           int_names_ord,
+                                                           fixed = TRUE) # not only single chars have to be contained, but exact order
+            select_int <- rowSums(find_int_dummy) == (ord) # because threeway interaction has 2 predictors; ord = order of interactions in joint distribution
+            
+            # fill in paramters + rownames into list
+            parmat <- matrix(part_ord[select_int], ncol = 1)
+            rownames(parmat) <- int_names_ord[select_int]
+            v_Pars_values[[ord]][[t]] <- parmat
+            
+            gotThemall[select_int == TRUE] <- FALSE
+            
+          }
+          
+          if(sum(gotThemall) > 0) stop('Fuckup in parameter extraction 2')
+          
+        } # end if: no_interactions[ord] > 0
         
       } # end for: ord
       
@@ -591,17 +653,18 @@ mgm <- function(data,         # n x p data matrix
     Pars_ind[[v]] <- v_Pars_ind
     Pars_values[[v]] <- v_Pars_values
     
-    
   } # end for: v
   
-  # browser()
   
+  
+  # --------------------------------------------------------------------------------------------
+  # -------------------- Postprocess Regression Estimates into (Factor) Graph Structure --------
+  # --------------------------------------------------------------------------------------------
   
   
   # ----- Reduce to 1 parameter per Factor, apply AND rule and get sign -----
   
   # Combine interactions from all neighborhood regressions in one structure
-  
   
   # We turn around the nesting to be able to collapse across over v
   # In addition we append the estimated node to 'complete' the interaction
@@ -621,8 +684,11 @@ mgm <- function(data,         # n x p data matrix
     for(ord in 1:d) {
       
       # Reordering indicator list
-      Pars_ind_part <-  Pars_ind[[v]][[ord]]
-      Pars_ind[[v]][[ord]] <- cbind(rep(v, nrow(Pars_ind_part)), Pars_ind[[v]][[ord]])
+      Pars_ind_part <- Pars_ind[[v]][[ord]]
+      colnames(Pars_ind_part) <- NULL
+      Pars_ind_part <- as.matrix(Pars_ind_part)
+      
+      Pars_ind[[v]][[ord]] <- cbind(rep(v, nrow(Pars_ind_part)), Pars_ind_part)
       Pars_ind_flip[[ord]][[v]] <- Pars_ind[[v]][[ord]]
       
       # Reordering value list
@@ -633,22 +699,37 @@ mgm <- function(data,         # n x p data matrix
   
   # Collapse indicator list across nodes
   Pars_ind_flip_red <- lapply(Pars_ind_flip, function(x) do.call(rbind, x)  )
-  
   # Collapse value list across nodes
   Pars_values_flip_red <- lapply(Pars_values_flip, function(x) do.call(c, x))
   
   
+  
   # 1) Select each interaction
+  
+  # Compute number of interactions for each order
+  #     Note that we could take this information also from the design matrices; however, we compute it theoretically as a sanity check
+  n_terms_d <- rep(NA, d)
+  if(is.null(moderators)) {
+    for(ord in 1:d) n_terms_d[ord] <- choose(p, ord+1)
+  } else {
+    n_terms_d[1] <- choose(p, 1+1) # all pairwise interactions
+    mod_terms <- expand.grid((1:p), (1:p), moderators) 
+    id_uni <- FlagSymmetricFast(mod_terms)
+    mod_terms2 <- mod_terms[!duplicated(id_uni), ]
+    ind_diff <- as.numeric(apply(mod_terms2, 1, function(x) !any(duplicated(x))))
+    mod_terms3 <- mod_terms2[ind_diff == 1, ]
+    n_terms_d[2] <- nrow(mod_terms3) # ok to have interactions double; will remove them below using FlagSymmetricFast()
+  }
   
   # Set up target data structure
   l_factors <- list() # saves all unique interavtions
-  for(i in 1:d) l_factors[[i]] <- matrix(NA, nrow = choose(p, i+1), ncol = i+1)
+  for(ord in 1:d) l_factors[[ord]] <- matrix(NA, nrow = n_terms_d[ord], ncol = ord+1)
   l_factor_par <- list() # saves parameters associated with all unique interactions
-  for(i in 1:d) l_factor_par[[i]] <- vector('list', length = choose(p, i+1))
+  for(ord in 1:d) l_factor_par[[ord]] <- vector('list', length = n_terms_d[ord])
   l_sign_par <- list() # saves sign (if defined) of all unique interactions
-  for(i in 1:d) l_sign_par[[i]] <- rep(NA, choose(p, i+1))
+  for(ord in 1:d) l_sign_par[[ord]] <- rep(NA, n_terms_d[ord])
   
-  l_factor_par_full <- l_factor_par # for un-aggregated parameter esimates
+  l_factor_par_full <- l_factor_par_AggNodewise <- l_factor_par_SignNodewise <- l_factor_par # for un-aggregated parameter esimates
   
   # Define set of continous and binary variables: for interactions between these we can assign a sign
   # Depends on binarySign
@@ -659,18 +740,23 @@ mgm <- function(data,         # n x p data matrix
   }
   
   
-  # loop over: order of interactions (ord = 1 = pairwise)
+  
+  # Loop over: order of interactions (ord = 1 = pairwise)
   for(ord in 1:d) {
     
     set_int_ord <- Pars_ind_flip_red[[ord]]
     set_par_ord <- Pars_values_flip_red[[ord]]
+    row.names(set_int_ord) <- NULL
     
-    ids <- FlagSymmetricFast(set_int_ord) # BOTTLE NECK, now better with native solution, but still problematic for huge p
+    ids <- FlagSymmetricFast(x = set_int_ord) # BOTTLE NECK, now better with native solution, but still problematic for huge p
     
-    unique_ids <- unique(ids)
+    # Get set of unique interactions
+    unique_set_int_ord <- cbind(set_int_ord, ids)[!duplicated(ids), ]
+    unique_set_int_ord <- matrix(unique_set_int_ord, ncol = ord+1+1)
+    n_unique <- nrow(unique_set_int_ord)
     
     # loop over: unique interaction of order = ord
-    for(i in 1:length(unique_ids)) {
+    for(i in 1:n_unique) {
       
       l_w_ind <- list()
       l_w_par <- list()
@@ -678,14 +764,18 @@ mgm <- function(data,         # n x p data matrix
       
       # loop over the k estimates for a given k-order interaction
       for(j in 1:(ord+1)) {
-        
         l_w_ind[[j]] <- set_int_ord[ind_inter[j], ]
         l_w_par[[j]] <- set_par_ord[[ind_inter[j]]]
-        
       }
       
-      # Mapping: Regression parameters -> Edge parameter
+      # if(i == 2) browser()
+      
+      # Mapping: Regression parameters -> Edge parameter (mean of absolute values of parameters)
       m_par_seq <- unlist(lapply(l_w_par, function(x) mean(abs(unlist(x)))))
+      m_sign_seq <- unlist(lapply(l_w_par, function(x) {
+        x <- unlist(x)
+        if(length(x)>1) 0 else sign(x)
+      } ))
       
       # Apply AND / OR rule
       if(ruleReg == 'AND') parcompr <- mean(m_par_seq) * !(0 %in% m_par_seq)
@@ -694,21 +784,21 @@ mgm <- function(data,         # n x p data matrix
       # Compute Sign if defined
       if(mean(m_par_seq) != 0) { # only relevant for nonzero parameters
         
-        pair <- l_w_ind[[1]]
+        pair <- l_w_ind[[1]] # order doesn't matter, could take any but the first entry is always filled independent of "ord", so first
         
         if(sum(!(pair %in% set_signdefined)) == 0) { # check of all involved varibales are g, p, or binary
           
-          # if(sum(pair == c(1,3))==2) browser()
+          # Computes combined sign (if defined) over k terms for same interaction
+          sign_object <- getSign(l_w_ind, 
+                                 l_w_par,
+                                 type,
+                                 set_signdefined,
+                                 overparameterize,
+                                 ord)
+          
+          int_sign <- sign_object$voteSign
           
           
-          int_sign <- getSign(l_w_ind,
-                              l_w_par,
-                              type,
-                              set_signdefined,
-                              overparameterize,
-                              ord)
-          
-
         } else {
           int_sign <- 0 # if not defined (set_signdefined): 0
         }
@@ -723,20 +813,26 @@ mgm <- function(data,         # n x p data matrix
       l_factors[[ord]][i, ] <- l_w_ind[[1]] # just choose first one, doesn't matter
       
       # Save edge weight
+      
+      for(i_ord in 1:(ord+1)) {
+        l_factor_par_AggNodewise[[ord]][[i]][[i_ord]] <- m_par_seq[i_ord]
+        l_factor_par_SignNodewise[[ord]][[i]][[i_ord]] <- m_sign_seq[i_ord]
+      }
+      
       l_factor_par[[ord]][[i]] <- parcompr
       l_factor_par_full[[ord]][[i]] <- l_w_par
-      
-      
-      
+
     } # end for: i (unique interactions)
     
   } # end for: ord
   
   
+  # browser()
   
-  # ----- Compute (weighted) adjacency matrix -----
+  
+  # -------------------- Compute Weighted Adjacency matrix (pairwise Interactions) -------------------
+  
   # We copy the objects from above, and delete rows in l_factors if l_factor_par is zero
-  
   l_factors_nz <- l_factors
   l_factor_par_nz <- l_factor_par
   l_factor_par_full_nz <- l_factor_par_full
@@ -773,13 +869,15 @@ mgm <- function(data,         # n x p data matrix
   }
   
   # Save in output
-  mgmobj$rawfactor$indicator <- l_factors_nz
-  mgmobj$rawfactor$weightsAgg <- l_factor_par_nz
-  mgmobj$rawfactor$weights <- l_factor_par_full_nz
-  mgmobj$rawfactor$signs <- l_sign_par_nz
+  mgmobj$interactions$indicator <- l_factors_nz
+  mgmobj$interactions$weightsAgg <- l_factor_par_nz
+  mgmobj$interactions$weights <- l_factor_par_full_nz
+  mgmobj$interactions$signs <- l_sign_par_nz
   
+  # browser()
   
-  # -------------------- Compute Weighted Adjacency matrix (pairwise Interactions) -------------------
+
+  # ---------- Fill into p x p Matrix ---------
   
   m_signs <- matrix(NA, p, p)
   wadj <-  matrix(0, p, p)
@@ -803,34 +901,53 @@ mgm <- function(data,         # n x p data matrix
   mgmobj$pairwise$signs <- m_signs
   mgmobj$pairwise$edgecolor <- sign_colors
   
-  
-  
-  # -------------------- Compute Factor Graph -------------------
-  
   # browser()
   
-  FG <- DrawFG(list_ind = l_factors_nz,
-               list_weights = l_factor_par_nz,
-               list_signs = l_sign_par_nz,
-               p = p)
   
+  # ---------- Fill into p x p Nodewise Matrix ---------
+
+  m_wadj <-  m_signs <- matrix(0, p, p)
+  
+  # get table of unique pairwise interactions (copied from above)
+  ord <- 1
+  set_int_ord <- Pars_ind_flip_red[[ord]]
+  row.names(set_int_ord) <- NULL
+  ids <- FlagSymmetricFast(x = set_int_ord) # BOTTLE NECK, now better with native solution, but still problematic for huge p
+  unique_set_int_ord <- cbind(set_int_ord, ids)[!duplicated(ids), ]
+  unique_set_int_ord <- matrix(unique_set_int_ord, ncol = ord+1+1)
+  
+  n_edges <- nrow(unique_set_int_ord)
+  ED <- unique_set_int_ord
+  
+    for(i in 1:n_edges) {
+      m_wadj[ED[i,1], ED[i,2]] <- l_factor_par_AggNodewise[[1]][[i]][[2]]
+      m_wadj[ED[i,2], ED[i,1]] <- l_factor_par_AggNodewise[[1]][[i]][[1]]
+      
+      m_signs[ED[i,1], ED[i,2]] <- l_factor_par_SignNodewise[[1]][[i]][[2]]
+      m_signs[ED[i,2], ED[i,1]] <- l_factor_par_SignNodewise[[1]][[i]][[1]]
+    }
+  
+  
+  # Create sign color matrix
+  sign_colors <- matrix('darkgrey', p, p)
+  sign_colors[m_signs == 1] <- 'darkgreen'
+  sign_colors[m_signs == -1] <- 'red'
   
   # Save in output
-  mgmobj$factorgraph$graph <- FG$weightedgraph
-  mgmobj$factorgraph$nodetype <- FG$nodetype
-  mgmobj$factorgraph$order <- FG$order
+  mgmobj$pairwise$wadjNodewise <- m_wadj
+  mgmobj$pairwise$signsNodewise <- m_signs
+  mgmobj$pairwise$edgecolorNodewise <- sign_colors
   
-  mgmobj$factorgraph$signs <- FG$signs
-  mgmobj$factorgraph$edgecolor <- FG$signcolor
+
+  # --------------------------------------------------------------------------------------------
+  # -------------------- Output ----------------------------------------------------------------
+  # --------------------------------------------------------------------------------------------
   
-  
-  
-  # -------------------- Output -------------------
   
   # Save Node Models and extracted raw factors?
   if(!saveModels) {
     mgmobj$nodemodels <- NULL
-    mgmobj$rawfactor <- NULL
+    mgmobj$factors <- NULL
   }
   
   # Save intercepts

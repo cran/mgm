@@ -27,8 +27,8 @@ f_makeErrorTable <- function(data,
   ea[, 1] <- cnames
   
   # Get column names of Errors
-  if(length(l_errors_cat) == 0) names_cat <- NULL else names_cat <- paste0('Error.', names(l_errors_cat))
-  if(length(l_errors_con) == 0) names_con <- NULL else names_con <- paste0('Error.', names(l_errors_con))
+  if(length(l_errors_cat) == 0) names_cat <- NULL else names_cat <- paste0('', names(l_errors_cat))
+  if(length(l_errors_con) == 0) names_con <- NULL else names_con <- paste0('', names(l_errors_con))
   
   colnames(ea) <- c('Variable', names_con, names_cat)
   
@@ -39,8 +39,8 @@ f_makeErrorTable <- function(data,
   if(all(c('CC', 'nCC', 'CCmarg') %in% errorCat)) {
     
     CCmarg <- rep(NA, p)
-    CC <- ea[ , which(colnames(ea) =='Error.CC')]
-    nCC <- ea[ , which(colnames(ea) =='Error.nCC')]
+    CC <- ea[ , which(colnames(ea) =='CC')]
+    nCC <- ea[ , which(colnames(ea) =='nCC')]
     for(j in which(type=='c')) CCmarg[j] <- (nCC[j] - CC[j]) / (nCC[j] - 1)
     
     ea <- cbind(ea, round(CCmarg, 3))
@@ -61,6 +61,8 @@ predict.mgm <- function(object, # One of the four mgm objects
                         errorCat, # specifying error or providing function for categorical variables
                         tvMethod, # 'weighted' vs. 'closestModel'
                         consec,
+                        beepvar, 
+                        dayvar,
                         ...)
   
   
@@ -70,6 +72,25 @@ predict.mgm <- function(object, # One of the four mgm objects
   # ----- Fill in defaults ----- 
   
   if(missing(consec)) consec <- NULL
+  if(missing(beepvar)) beepvar <- NULL
+  if(missing(dayvar)) dayvar <- NULL
+  
+  # ----- Compute consec argument (copied from mvar() ) -----
+  
+  # Input checks (can only specify consec OR beepvar and dayvar)
+  
+  if(!is.null(consec) & !is.null(beepvar)) stop("Please specify the consecutiveness of measurements either via consec, or via dayvar and beepvar")
+  if(!is.null(consec) & !is.null(dayvar)) stop("Please specify the consecutiveness of measurements either via consec, or via dayvar and beepvar")
+  
+  if(!is.null(dayvar)) if(is.null(beepvar)) stop("Argument beepvar not specified.")
+  if(!is.null(beepvar)) if(is.null(dayvar)) stop("Argument dayvar not specified.")
+  
+  if(!is.null(beepvar) & !is.null(dayvar)) {
+    
+    consec <- beepday2consec(beepvar = beepvar,
+                             dayvar = dayvar)
+    
+  } # if: specification of consecutiveness via beepvar and dayvar
   
   
   # ----- Compute Aux Variables -----
@@ -130,7 +151,7 @@ predict.mgm <- function(object, # One of the four mgm objects
     
     # Has the provided time-series data the same lenght as the time-series used for fitting?
     if(cobj == 'tvmvar') {
-      if(nrow(data)-max(object$tvmodels[[1]]$call$lags) != length(object$tvmodels[[1]]$call$weights)) {
+      if(nrow(data) != length(object$tvmodels[[1]]$call$weights)) {
         stop('For time-varying models the time-series used for prediction has to have the same lenght as the time-series used for estimation.')
       }
     }
@@ -224,9 +245,7 @@ predict.mgm <- function(object, # One of the four mgm objects
     return(nCC)
   }
   
-  
-  
-  
+
   # Create list for loss functions
   
   # Continuous
@@ -344,12 +363,15 @@ predict.mgm <- function(object, # One of the four mgm objects
         
         object_ep <- object$tvmodels[[ep]]
         class(object_ep) <- cobj_ep
+      
         
         corePred <- l_preds[[ep]] <- predictCore_stat(object = object_ep,
                                                       data = data, 
                                                       consec = consec)
         
-        if(!is.null(consec)) n_pred <- sum(corePred$included) #+ max(object$call$lags) # 
+        if(!is.null(consec)) n_pred <- sum(corePred$included) #+ 1 # this is stupid; the $included should better be defined on all rows
+        
+        # browser()
         
         # Save separate for output:
         l_preds[[ep]] <- do.call(cbind, corePred$pred)
@@ -379,6 +401,7 @@ predict.mgm <- function(object, # One of the four mgm objects
       l_w_predict_cat <- list()
       a_w_predict_con <- array(NA, dim = c(n_pred, length(p_ind_con), n_estpoints))
       
+      # browser()
       
       # --- Continuous Variables ---
       
@@ -389,7 +412,7 @@ predict.mgm <- function(object, # One of the four mgm objects
           object_ep <- object$tvmodels[[ep]]
           
           # For continuous variables (just convex combination of values)
-          a_w_predict_con[, , ep] <- apply(l_preds[[ep]][,p_ind_con], 2, function(x) {
+          a_w_predict_con[, , ep] <- apply(l_preds[[ep]][, p_ind_con], 2, function(x) {
             w_pred_col <- x*m_weights[, ep]
             return(w_pred_col)
           })

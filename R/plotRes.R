@@ -1,7 +1,7 @@
 
 
 plotRes <- function(object,
-                    qtl,
+                    quantiles,
                     labels = NULL,
                     decreasing = TRUE, 
                     cut = NULL,
@@ -15,6 +15,10 @@ plotRes <- function(object,
   
   
   # ---------- Preprocessing ----------
+  
+  if(!("core" %in% class(object))) stop("plotRes() currently only supports resampled mgm() objects.")
+  if(!("resample" %in% class(object))) stop("PplotRes() only takes resample objects as input (see ?resample).")
+  if(missing(quantiles)) stop("No quantiles specified.")
   
   # Get basic info
   dims <- dim(object$bootParameters)
@@ -34,9 +38,9 @@ plotRes <- function(object,
         # Variable ids
         tar_mat[counter, 1] <- row
         tar_mat[counter, 2] <- col
-        
+
         # Quantiles
-        qtls <- quantile(object$bootParameters[row, col, ], probs = qtl)
+        qtls <- quantile(object$bootParameters[row, col, ], probs = quantiles)
         tar_mat[counter, 3] <- mean(object$bootParameters[row, col, ])
         tar_mat[counter, 4] <- qtls[1]
         tar_mat[counter, 5] <- qtls[2]
@@ -103,10 +107,10 @@ plotRes <- function(object,
   plot.window(xlim = xlim, ylim = ylim)
   if(is.null(axis.ticks)) axis.ticks <- round(seq(xlim[1], xlim[2], length = 5), 2)
   axis(3, axis.ticks, lwd=0)
-  
-  abline(v = 0, lty=2, col = "black") # zero line
+
   abline(h = plot_y, col = "grey")
-  
+  if(0 %in% axis.ticks) abline(v = 0, lty=2, col = "black") # zero line
+
   # Plot quantiles
   segments(x0 = TM[, 4], 
            y0 = plot_y, 
