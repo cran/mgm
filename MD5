@@ -1,6 +1,6 @@
-4f49113a5c7b2bb49d25410c00e93cd2 *DESCRIPTION
+381c6b01b38e781f296ce321299cee83 *DESCRIPTION
 5f566288d7b64be85b01cd700e7e268f *NAMESPACE
-67b51ca3f7404a5815320a3c3cbea2a8 *NEWS
+9a985f0e734d774ae7c3ae73b3fcd632 *NEWS
 60beadcecd50356540eb2d5f2131dca7 *R/DrawFG.R
 bc8b8eb49e818bfeb6a9c758f5ff10fa *R/FactorGraph.R
 ec6378fd900a87b3dbe0b2c2c53fb401 *R/FlagSymmetric.R
@@ -17,16 +17,16 @@ faee700df088c66b2624f35d4111f6af *R/defunct_msg.R
 d04780e000066f56a6766bb956127c35 *R/lagData.R
 e29848e0179a77d0bef554b326fb4edd *R/mgm.R
 c392f0ef3491ae63c61e463269dc2b37 *R/mgmsampler.R
-baefb6b0f707667cdf6d7e7d03967497 *R/mvar.R
+30ce5c472fb333c46faab6adb56d3c12 *R/mvar.R
 fa094c02b13c5fa33274d824b703acf9 *R/mvarsampler.R
 63b4ca4d8f61ed73313f16988f2ad085 *R/nodeEst.R
-43d5fe07a961ca330fb0e32a2f5e0011 *R/plotRes.R
+f386b66f67c31e6508997500f28742c5 *R/plotRes.R
 e3da57241d5569b93ebdae6a25df0df8 *R/predict.mgm.R
 208fe886511f22f5579b82644092b613 *R/predictCore_stat.R
 b10c678b1731263f25cd67eade554c44 *R/print.int.R
 041c7e820d1b0096f8b348a535707041 *R/print.mgm.R
 18f69f04ebcc64289e8b0968e1e8aad7 *R/print.resample.R
-e49c85bc89090a9d57b9b7a9b81be949 *R/resample.R
+e446eb5031295580b40738479ae24890 *R/resample.R
 d21683e89a3d7a1deb8a76453ef5f1f3 *R/showInteraction.R
 48611d7283ea769aa065ba2f3091d75c *R/startup_msg.R
 e93dce5b89408c6cff9b4dbf0aefff2b *R/tvmgm.R
@@ -51,7 +51,7 @@ dce2533a93cdb5cfea2af07d7d51161e *inst/CITATION
 3a9b922e1586901d541f54fedb24845e *man/FactorGraph.Rd
 2f7a1f117d6ac0076d487b2778964109 *man/bwSelect.Rd
 e2ab5dd232fe7d0da93b6a9ca0bbd787 *man/datasets.Rd
-7c1194a534600d919bb04eacdbcf9a32 *man/mgm-internal.Rd
+8461dfda0e8b7639b01751918def912d *man/mgm-internal.Rd
 0f2f5dd91ccd38eceafbabf538bf5f91 *man/mgm-package.Rd
 9d885e140000a0aeda71ee8df87b713b *man/mgm.Rd
 ebf852a923692c17a42284665916ddb3 *man/mgmsampler.Rd
