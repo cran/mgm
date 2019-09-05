@@ -49,7 +49,7 @@ resample <- function(object, # one of the four mgm model objects (mgm, mvar, tvm
   if(!is.logical(pbar)) stop('The argument pbar can only be TRUE/FALSE.')    
   if(any(quantiles < 0) | any(quantiles > 1)) stop("Specified quantiles have to be in [0,1].")
   
-  if(!is.null(object$call$k)) if(object$call$k > 2) stop("Currently resampling is only implemented for pairwise mgms/tvmgms.")
+  if(!is.null(object$call$k)) if(object$call$k > 2) warning("Summary statistics in the output are only implemented for pairwise mgms/tvmgms.")
   
   if(!any(c("core", "mvar", "tvmvar", "tvmgm") %in% class(object))) stop("Please provide an mgm object as input.")
   
@@ -96,6 +96,7 @@ resample <- function(object, # one of the four mgm model objects (mgm, mvar, tvm
                              alphaFolds = o_call$alphaFolds,
                              alphaGam = o_call$alphaGam,
                              k = o_call$k,
+                             moderators = o_call$moderators,
                              ruleReg = o_call$ruleReg,
                              weights = o_call$weights[l_ind[[b]]], # just copying, no other vector describing rows
                              threshold = o_call$threshold,
@@ -320,20 +321,18 @@ resample <- function(object, # one of the four mgm model objects (mgm, mvar, tvm
                            lags = o_call$lags, 
                            consec = o_call$consec)
     
-    
-    # add false for excluded 1:max_lags time points at beginning of time series
-    # max_lags <- max(o_call$lags)
-    # full_included_vec <- c(rep(FALSE, max_lags), data_lagged$included)
-    
+    # Make use of time-vector to be able to have block-bootstrap on actual time scale  
     timepoints_design <- o_call$timepoints[data_lagged$included]
-    
+
     # Break data into blocks of equal time-duration (unsing timepoints vector)
     Qt <- quantile(timepoints_design, probs = seq(0, 1, length = blocks + 1))
     ind_blocks <- cut(x = timepoints_design,  # important: indices in the design matrix
                       breaks = Qt,
                       labels = FALSE)
-    
     ind_blocks[1] <- 1 # for some reason the first entry is NA
+    
+    # Rows included in the design matrix
+    ind_valid_rows <- (1:nrow(data))[data_lagged$included]
     
     # Storage
     l_ind <- list() 
@@ -346,8 +345,8 @@ resample <- function(object, # one of the four mgm model objects (mgm, mvar, tvm
       
       for(b2 in 1:blocks) {
         
-        # Take bootstrap samples within blocks  
-        block_b2 <- which(ind_blocks == b2)
+        # Take bootstrap samples within blocks defined above from rows that are included (ind_valid_rows)
+        block_b2 <- ind_valid_rows[which(ind_blocks == b2)] 
         l_ind_blocks[[b2]] <- sample(x = block_b2, 
                                      size = length(block_b2), 
                                      replace = TRUE)
@@ -366,6 +365,8 @@ resample <- function(object, # one of the four mgm model objects (mgm, mvar, tvm
     l_b_models <- list()
     
     for(b in 1:nB) {
+      
+      # browser()
       
       set.seed(seeds[b])
       if(verbatim) print(paste0("Seed = ", seeds[b]))
@@ -415,6 +416,9 @@ resample <- function(object, # one of the four mgm model objects (mgm, mvar, tvm
     
     
   } # end if: tvmvar?
+  
+  
+  
   
   
   # ----------------------------------------------------------------------------------------
@@ -498,13 +502,12 @@ resample <- function(object, # one of the four mgm model objects (mgm, mvar, tvm
     p <- length(model_obj$call$type)
     nquantiles <- length(quantiles)
     
-    
     ## Collect all estimates
     collect_array <- collect_array_sign <- array(NA, dim = c(p, p, nB))
     for(b in 1:nB) collect_array[, , b] <- outlist$models[[b]]$pairwise$wadj
     for(b in 1:nB) collect_array_sign[, , b] <- outlist$models[[b]]$pairwise$signs
     
-    # add sign
+    # Add sign
     collect_array_wS <- collect_array
     ind_negative <- which(collect_array_sign == -1, arr.ind = TRUE)
     collect_array_wS[ind_negative] <- collect_array_wS[ind_negative] * -1

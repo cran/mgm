@@ -55,7 +55,7 @@ Order up until including which interactions are included in the model. \code{k =
 }
 
   \item{moderators}{
-Integer vector with elements in \code{1:p}, specifying moderation effects to be included in the model. For instance, \code{moderators = c(4)} includes all linear moderation effects of variable 4. This is equivalent to including all 3-way interactions that include variable 4. Note that \code{moderators = 1:p} gives the same model as setting \code{k = 3} (see previous argument).
+Integer vector with elements in \code{1:p}, specifying moderation effects to be included in the model. For instance, \code{moderators = c(4)} includes all linear moderation effects of variable 4. This is equivalent to including all 3-way interactions that include variable 4. Note that \code{moderators = 1:p} gives the same model as setting \code{k = 3} (see previous argument). Alternatively, a specific set of moderators can be specified via a M x 3 matrix, where M is the number of moderation effects. For example, \code{moderators = matrix(1:3, nrow=1)} adds (only) the 3-way interaction 1-2-3 to the model. 
 }
 
   \item{ruleReg}{
@@ -76,7 +76,7 @@ If \code{binarySign = TRUE}, a sign for the interaction within binary nodes and 
 }
 
   \item{scale}{
-If \code{scale = TRUE}, all Gaussian nodes (specified by \code{"g"} in \code{type}) are centered and divided by their standard deviation. Scaling is recommended, because otherwise the penalization of a parameter depends on the variance of the associated predictor.
+If \code{scale = TRUE}, all Gaussian nodes (specified by \code{"g"} in \code{type}) are centered and divided by their standard deviation. Scaling is recommended, because otherwise the penalization of a parameter depends on the variance of the associated predictor. Defaults to \code{scale = TRUE}.
 }
 
   \item{verbatim}{
@@ -96,7 +96,7 @@ If \code{saveModels = FALSE}, only information about the weighted adjacency matr
 If \code{saveData = TRUE}, the data is saved in the output list. Defaults to \code{saveData = FALSE}.
 }
   \item{overparameterize}{
-If \code{overparameterize = TRUE}, \code{mgm()} uses over-parameterized design-matrices for each neighborhood regression; this means that an interaction between two categorical variables with m and s categories is parameterized by m*s parameters. If \code{overparameterize = FALSE} the standard parameterization (in \code{glmnet}) with m*(s-1) parameters is used, where the first category of the predicting variable serves as reference category. If all variables are continuous both parameterizations are the same. Note that the default is set to \code{overparameterize = FALSE}, to be consistent with the previous mgm versions. However note that in order to recover higher order interactions categorical variables the overparameterized parameterization is often advantageous. See the examples below for an illustration. Note that we can estimate the model despite the colinear columns in the design matrix because we use penalized regression.
+If \code{overparameterize = TRUE}, \code{mgm()} uses over-parameterized design-matrices for each neighborhood regression; this means that an interaction between two categorical variables with m and s categories is parameterized by m*s parameters. If \code{overparameterize = FALSE} the standard parameterization (in \code{glmnet}) with m*(s-1) parameters is used, where the first category of the predicting variable serves as reference category. If all variables are continuous both parameterizations are the same. Note that the default is set to \code{overparameterize = FALSE}, to be consistent with the previous mgm versions. However when the goal is to seperate pairwise interactions from 3-way (or higher) interactions, then the overparameterized version is advantageous. See the examples below for an illustration. Note that we can estimate the model despite the colinear columns in the design matrix because we use penalized regression.
 }
 
   \item{thresholdCat}{
