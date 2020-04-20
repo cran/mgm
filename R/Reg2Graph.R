@@ -9,7 +9,6 @@
 
 Reg2Graph <- function(mgmobj) {
   
-  
   # -------------------- Processing glmnet Output -------------------
   
   # Basic info from model object
@@ -30,10 +29,13 @@ Reg2Graph <- function(mgmobj) {
   mSpec <- ifelse(class(moderators) %in% c("integer","numeric"), "vector", "matrix")
   
   
+  # browser()
+  
   # Storage
   Pars_ind <- list() # storage for interaction-indicators
   Pars_values <- list() # storage for actual parameters associate for the interactions indexed in Pars_ind
   mgmobj$intercepts <- vector('list', length = p)
+  
   
   for(v in 1:p) {
     
@@ -54,12 +56,12 @@ Reg2Graph <- function(mgmobj) {
       
     } else {
       
+      d <- 2
+      
       v_Pars_ind[[1]] <- matrix(predictor_set, ncol=1) # main effects
       
       # Moderation effects
       if(mSpec == "vector") {
-        
-        d <- 2
         
         if(v %in% moderators) {
           ind_mods <- t(combn((1:p)[-v], 2)) # if moderator, all combinations of other variables
@@ -91,6 +93,9 @@ Reg2Graph <- function(mgmobj) {
     # B) Parameter Object: Same structure as (A), but now with a list entry for each matrix row
     v_Pars_values <- vector('list', length = d)
     for(ord in 1:d) v_Pars_values[[ord]] <- vector('list', length = no_interactions[ord])
+    
+    
+    
     
     # ----- Fill (B) with parameter estimates -----
     
@@ -217,6 +222,7 @@ Reg2Graph <- function(mgmobj) {
   } # end for: v
   
   
+  # browser()
   
   # --------------------------------------------------------------------------------------------
   # -------------------- Postprocess Regression Estimates into (Factor) Graph Structure --------
@@ -300,7 +306,7 @@ Reg2Graph <- function(mgmobj) {
   l_sign_par <- list() # saves sign (if defined) of all unique interactions
   for(ord in 1:d) l_sign_par[[ord]] <- rep(NA, n_terms_d[ord])
   
-  l_factor_par_full <- l_factor_par_AggNodewise <- l_factor_par_SignNodewise <- l_factor_par # for un-aggregated parameter esimates
+  l_factor_par_full <- l_factor_par_AggNodewise <- l_factor_par_SignNodewise <- l_factor_par # for un-aggregated parameter estimates
   
   # Define set of continous and binary variables: for interactions between these we can assign a sign
   # Depends on binarySign

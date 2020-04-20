@@ -1,5 +1,4 @@
 
-
 mgm <- function(data,         # n x p data matrix
                 type,         # p vector indicating the type of each variable
                 level,        # p vector indivating the levels of each variable
@@ -102,14 +101,16 @@ mgm <- function(data,         # n x p data matrix
   if(any(!is.finite(as.matrix(data)))) stop('No infinite values permitted.')
   if(any(is.na(data))) stop('No missing values permitted.')
   
-  # browser()
-  
   # Checks on moderators
   if(!is.null(moderators)) {
     if(!all(moderators == round(moderators))) stop("Moderators have to be specified as integers mapping to the column numbers of variables in the data set.")
     if(!all(moderators %in% 1:p)) stop("Specified moderators are larger than number of variables in the data.")
     if(class(moderators) == "matrix") if(ncol(moderators) != 3) stop("Custom moderators have to be specified in a M x 3 matrix, for M moderators.")
-  }
+    if(is.matrix(moderators)) if(any(apply(moderators, 1, function(x) any(duplicated(x))))) stop("Currently mgm() does not support the specification of quadratic effects.")
+  } # end if: moderators?
+  
+  
+  
   
   # ----- Compute Auxilliary Variables II -----
   
@@ -142,7 +143,7 @@ mgm <- function(data,         # n x p data matrix
   # Get unique values for all categorical variables (used in condition.R)
   unique_cats <- list()
   for(i in 1:p) if(type[i]=="c") unique_cats[[i]] <- unique(data[, i])
-
+  
   # ----- Basic Checks II -----
   
   # Checks on other arguments
@@ -284,8 +285,6 @@ mgm <- function(data,         # n x p data matrix
     
     # ----- Construct Design Matrix -----
     
-    # browser()
-    
     X_standard <- X <- ModelMatrix_standard(data = data,
                                             type = type,
                                             d = d, 
@@ -309,7 +308,7 @@ mgm <- function(data,         # n x p data matrix
       
     } # end if: overparameterize?
     
-
+    
     ## Scale Gaussian variables AFTER computing design matrix
     # Compute vector that tell us which interactions are purely consisting of continuous variables?
     if(scale) {
@@ -363,6 +362,7 @@ mgm <- function(data,         # n x p data matrix
             # Recompute variables for training set
             n_train <- nrow(train_X)
             nadj_train <- sum(weights[ind != fold])
+            
             
             l_foldmodels[[fold]] <- nodeEst(y = train_y,
                                             X = train_X,
@@ -422,6 +422,8 @@ mgm <- function(data,         # n x p data matrix
       }
       
       # Refit Model on whole data, with selected alpha
+      
+      # browser()
       
       model <- nodeEst(y = y,
                        X = X,
@@ -497,7 +499,8 @@ mgm <- function(data,         # n x p data matrix
   # --------------------------------------------------------------------------------------------  
   
   mgmobj <- Reg2Graph(mgmobj = mgmobj)
-
+  
+  
   # --------------------------------------------------------------------------------------------
   # -------------------- Output ----------------------------------------------------------------
   # --------------------------------------------------------------------------------------------
