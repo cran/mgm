@@ -1,12 +1,12 @@
-9e6bf37e4a297ab8848a1ab1f32749d9 *DESCRIPTION
+0a896d7196f9096a0ddd85975ff0bfb8 *DESCRIPTION
 f281551150805dc142798cb06da8df2c *NAMESPACE
-4378a14361c98df9e889344df65fac11 *NEWS
+688bb5d0fefde3c507d79b41b1bf54ee *NEWS
 60beadcecd50356540eb2d5f2131dca7 *R/DrawFG.R
 ed00a53d736c8a9b4b68a605003570d8 *R/FactorGraph.R
 ec6378fd900a87b3dbe0b2c2c53fb401 *R/FlagSymmetric.R
 bfec3ab45e7034b8d46e80f8d23dc76b *R/ModelMatrix.R
 691f2499103f4984627d074c7086ddc1 *R/ModelMatrix_standard.R
-6d419993470e654b77bfd3cd6943c0bd *R/Reg2Graph.R
+5b3a0cfc2fa4e245deae894fed61b3b4 *R/Reg2Graph.R
 9fe65626afa7d5ee8a009c726b71aeab *R/applyTauAND.R
 95f9648328377901efe1f25d51796074 *R/beepday2consec.R
 99c3017d772c17d1e88d00c4a3bdcf8b *R/bwSelPredict.R
@@ -16,7 +16,7 @@ ff2a83debe6d1ae0fbb765c74e65d457 *R/bwSelect.R
 8bb681448a230a3a2eac92ad325080f7 *R/condition.R
 3d92f349162bb8fda15ae74c9c317117 *R/condition_core.R
 faee700df088c66b2624f35d4111f6af *R/defunct_msg.R
-9b7efcbdc971005c906dfe81c13c253d *R/getSign.R
+cb3cf1fae3e1d459c7b1895b6553038d *R/getSign.R
 e27a921ee6faa892b82f5e465807fbc4 *R/glmnetRequirements.R
 d04780e000066f56a6766bb956127c35 *R/lagData.R
 592999372b5bdfcc9b29c789a40f239c *R/mgm.R
@@ -31,7 +31,7 @@ b10c678b1731263f25cd67eade554c44 *R/print.int.R
 474148bbd5d03d864ee5de8cc0da99b6 *R/print.mgm.R
 18f69f04ebcc64289e8b0968e1e8aad7 *R/print.resample.R
 db703d677e79d7091394b95f1d155296 *R/resample.R
-d21683e89a3d7a1deb8a76453ef5f1f3 *R/showInteraction.R
+f8ea1210d0f0c9fd8021bb135d6e7011 *R/showInteraction.R
 48611d7283ea769aa065ba2f3091d75c *R/startup_msg.R
 e93dce5b89408c6cff9b4dbf0aefff2b *R/tvmgm.R
 ba4dfe99c634c80cc626e3c90a9a424f *R/tvmgmsampler.R
@@ -43,6 +43,7 @@ acc1c47b784beda3e78b279159dd2843 *data/Fried2015.RData
 b97a454d4157638aa1333fb644f91c00 *data/PTSD_data.RData
 c58fe0244b6babb3a70bc68088469ef2 *data/autism_data.RData
 e421415d514300df910b21009a0cd799 *data/autism_data_large.RData
+e439100c40b3c156ae9abdc528203203 *data/dataGD.RData
 c8f81548acb268a3f5cdfb067afd5f04 *data/fruitfly_data.RData
 38125135a6ebf7cf8fe56519ff2a0471 *data/mgm_data.RData
 dc19178e9cf28375d2a291a7c267bf97 *data/modnw.RData
@@ -55,10 +56,10 @@ f01c4e47298aecd9705194dab405470b *data/symptom_data.RData
 f9db6e6c8fe45597ecc2c85fc88b3e58 *man/FactorGraph.Rd
 84bc3c758351bd7792783c47bc0c432f *man/bwSelect.Rd
 63522c4fce6ca310721e0b77a97a47bb *man/condition.Rd
-e2ab5dd232fe7d0da93b6a9ca0bbd787 *man/datasets.Rd
+40f19586346a8cf78226601511cc7d95 *man/datasets.Rd
 8461dfda0e8b7639b01751918def912d *man/mgm-internal.Rd
-84f8c555eadcc992c7c41836d483d908 *man/mgm-package.Rd
-155d45fde2dad91cb98ac5ac0183673d *man/mgm.Rd
+fef0554b23e5ab4287809aeb28fa7099 *man/mgm-package.Rd
+997eb0af96189a1643e6e0298fecc0ce *man/mgm.Rd
 c341366c8bcca0b49fe62e79c41640b2 *man/mgmsampler.Rd
 c808f972775276a03dbb05b4e1cde3fa *man/mvar.Rd
 65f6921ea4025b1887792444ac637671 *man/mvarsampler.Rd
