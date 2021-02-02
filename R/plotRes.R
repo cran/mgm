@@ -66,7 +66,7 @@ plotData <- function(TM,
            y0 = plot_y, 
            x1 = TM[, 5],
            y1 = plot_y, lwd = lwd.qtl)
-   
+  
   # Plot prop>0
   points(TM[, 3], plot_y, pch=19, col=bgcol, cex = cex.bg)
   points(TM[, 3], plot_y, pch=21, col="black", cex = cex.bg)
@@ -89,8 +89,9 @@ plotRes <- function(object,
                     axis.ticks = c(-.5, -.25, 0, .25, .5, .75, 1), 
                     axis.ticks.mod = NULL,
                     layout.width.labels = .2, 
-                    layout.gap.pw.mod = .15)
-  
+                    layout.gap.pw.mod = .15, 
+                    table = FALSE)
+
 {
   
   
@@ -105,6 +106,9 @@ plotRes <- function(object,
   type <- object$call$object$call$type
   p <- length(type)
   nB <- object$call$nB
+  binarySign <- object$call$object$call$binarySign
+  ind_cat <- object$call$object$call$ind_cat
+  ind_binary <- object$call$object$call$ind_binary
   
   # ----------------------------------------------------------------------
   # ---------- Input Checks ----------------------------------------------
@@ -116,10 +120,34 @@ plotRes <- function(object,
   # if(missing(quantiles)) stop("No quantiles specified.")
   if(object$call$object$call$k > 3) stop("Currently only implemented with mgms with k <= 3.")
   
-  # Input checks: single moderator
-  if(length(mod) > 1) stop("plotRes() is currently only implemented for MNNs with a single moderator.")
+  # Check whether there is only a single moderator
+  if(class(mod)[1] == "numeric") if(length(mod) > 1) stop("plotRes() is currently only implemented for MNNs with a single moderator.")
+  
+  if(class(mod)[1] == "matrix") {
+    
+    # find whether one variable is in each 3-way interaction; if yes, that's the one we treat as the moderator
+    n_mod <- nrow(mod)
+    m_check <- matrix(NA, n_mod, p)
+    
+    for(i in 1:p) for(m in 1:n_mod) m_check[m, i] <- i %in% mod[m, ] 
+    v_check <- apply(m_check, 2, function(x) all(x == TRUE))
+    
+    mod_fix <- which(v_check)
+    if(is.null(mod_fix)) stop("plotRes() is currently only implemented for MNNs with a single moderator.")
+    
+    # pretend that we have all possible moderation effect of mod; this will result in unmodeled moderation effects to be set to zero (as they should be) 
+    mod <- mod_fix
+  }
   
   
+  
+  # Define set of continuous and binary variables: for interactions between these we can assign a sign
+  # Depends on binarySign
+  if(binarySign) {
+    set_signdefined <- c(which(type == 'p'), which(type == 'g'), ind_cat[ind_binary])
+  } else {
+    set_signdefined <- c(which(type == 'p'), which(type == 'g'))
+  }
   
   # ----------------------------------------------------------------------
   # ---------- A.1) mgm objects (unmoderated) ----------------------------
@@ -173,6 +201,7 @@ plotRes <- function(object,
       TM <- tar_mat[cut, ]
     }
     
+    if(!table) {
     # ---------- Plotting ----------  
     
     # Compute aux variables for plotting
@@ -198,7 +227,6 @@ plotRes <- function(object,
     
     
     # ----- Part B: Data ----
-  
     
     plotData(TM = TM, 
              axis.ticks = axis.ticks, 
@@ -210,9 +238,14 @@ plotRes <- function(object,
              margins=margins)
     
     
+    # Return table insteaed
+    } else {
+      
+      return(TM)
+
+    }
+    
   } # end if: moderation?
-  
-  
   
   
   # ----------------------------------------------------------------------
@@ -242,29 +275,45 @@ plotRes <- function(object,
         ind_pw <- which(apply(m_ind_allpw, 1, function(x) sum(x %in% mod_b_pw[i, ])) == 2)
         m_pw[ind_pw, b] <- mod_b$interactions$weightsAgg[[1]][[i]][1]
         
-        # add sign if applicable
-        if(all(type[mod_b_pw] == "g")) {
-          v_est <- unlist(mod_b$interactions$weights[[1]][[i]])
-          v_sign <- sign(v_est)
-          sign_sel <- as.numeric(names(which.max(table(v_sign)))) # ugly!
-          m_pw[ind_pw, b] <- m_pw[ind_pw, b] * sign_sel
-        }
+        # Add sign if applicable
+        if(mod_b$interactions$signs[[1]][[i]] == -1) m_pw[ind_pw, b] <- m_pw[ind_pw, b] * -1
+          
+        # # add sign if applicable
+        # if(all(type[mod_b_pw] == "g")) {
+        #   v_est <- unlist(mod_b$interactions$weights[[1]][[i]])
+        #   v_sign <- sign(v_est)
+        #   sign_sel <- as.numeric(names(which.max(table(v_sign)))) # ugly!
+        #   m_pw[ind_pw, b] <- m_pw[ind_pw, b] * sign_sel
+        # }
         
       } # end: pw int
       
-      # Loop moderation & get moderation
+      # Loop moderation & get moderation effects
       if(nrow(mod_b_m) > 0) for(i in 1:nrow(mod_b_m)) {
+        
         ind_mod <- which(apply(m_ind_allpw, 1, function(x) sum(x %in% mod_b_m[i, ][-which(mod_b_m[i, ]==mod)])) == 2)
-        m_mod[ind_mod, b] <- mod_b$interactions$weightsAgg[[2]][[i]][1]
+        m_mod[ind_mod, b] <- mod_b$interactions$weightsAgg[[2]][[i]][1] #* mod_b$interactions$signs[[2]][[i]] # add sign
+        
+        
+        
+        # Add sign if applicable !!!! THIS DOES NOT WORK !!! because no signs are defined in Reg2Graph() for 3-way interactions; there was a reason I did the complicated thing below
+        if(mod_b$interactions$signs[[2]][[i]] == -1) m_mod[ind_mod, b]  <- m_mod[ind_mod, b]  * -1
         
         # add sign if applicable
-        if(all(type[mod_b_m] == "g")) {
-          v_est <- unlist(mod_b$interactions$weights[[2]][[i]])
+        if(all(mod_b_m[i, ] %in% set_signdefined)) {
+          v_est <- rep(NA, 3)
+          for(k in 1:3) {
+            if(type[mod_b_m[i, k]] == "c") {
+              v_est[k] <- mod_b$interactions$weights[[2]][[i]][[k]][[2]]
+            } else {
+              v_est[k] <- mod_b$interactions$weights[[2]][[i]][[k]]
+            }
+          }
           v_sign <- sign(v_est)
           sign_sel <- as.numeric(names(which.max(table(v_sign)))) # ugly!
           m_mod[ind_mod, b] <- m_mod[ind_mod, b] * sign_sel
         }
-        
+
       } # end: mod 
       
     } # end: bootstrap it
@@ -294,8 +343,6 @@ plotRes <- function(object,
     tar_mat_pw <- tar_mat_pw[ord, ]
     tar_mat_mod <- tar_mat_mod[ord, ]
     
-    # browser()
-    
     # Subset (cut argument)
     if(is.null(cut)) {
       TM_pw <- tar_mat_pw
@@ -305,6 +352,8 @@ plotRes <- function(object,
       TM_mod <- tar_mat_mod[cut, ]
     }
     
+    if(!table) {
+      
     # ---------- Plotting ---------- 
     
     n_rows <- nrow(TM_pw)
@@ -316,7 +365,7 @@ plotRes <- function(object,
     
     lmat <- rbind(c(1,2,7,3), 
                   c(4,5,8,6))
-
+    
     lo <- layout(lmat, 
                  widths = c(layout.width.labels, 1, layout.gap.pw.mod, 1), 
                  heights = c(.07, .9))
@@ -330,7 +379,7 @@ plotRes <- function(object,
     plot.new() 
     plot.window(xlim=c(0, 1), ylim=c(0,1))
     text(0.5, 0.5, "Pairwise effects", cex=1.5, adj = 0.5)
-
+    
     plot.new() 
     plot.window(xlim=c(0, 1), ylim=c(0,1))
     text(0.5, 0.5, "Moderation effects", cex=1.5, adj = 0.5)
@@ -357,12 +406,10 @@ plotRes <- function(object,
              cex.bg = cex.bg, 
              cex.mean = cex.mean, 
              margins = margins)
-
+    
     # ----- C) Plot Moderation effects -----
     
     if(is.null(axis.ticks.mod)) axis.ticks.mod <- axis.ticks
-    
-    # browser()
     
     plotData(TM = TM_mod, 
              axis.ticks = axis.ticks.mod, 
@@ -374,7 +421,15 @@ plotRes <- function(object,
              bgcol = "white", 
              margins = margins)
     
-    
+    # Return table instead
+    } else {
+      
+      # make table
+      colnames(TM_mod)[3:6] <- c("Mod_Mean", "Mod_qtl_low", "Mod_qtl_high", "Mod_propLtZ") 
+      out_table <- cbind(TM_pw, TM_mod)
+      return(out_table)
+      
+    }
     
   } # end if: moderation?
   

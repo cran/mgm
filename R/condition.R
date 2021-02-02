@@ -34,7 +34,7 @@ condition <- function(object,
   
   # Check whether variables are specified via column name
   if(any(is.na(cond_names))) stop("Variables to condition on have to be specified by column number (not, for example column name). See also ?condition.")
-
+  
   if(object$call$k>3) stop("This function is only implemented for first-order moderation (3-way interactions).")
   if(! ("core" %in% class(object)) ) stop("condition() is currently only implemented for mgm() objects.")
   
@@ -45,7 +45,7 @@ condition <- function(object,
     }  
   }
   
-  # Continuous variables: give warning if one conditions outside 99% quantiles
+  # TODO: Continuous variables: give warning if one conditions outside 99% quantiles
   
   
   
@@ -58,8 +58,6 @@ condition <- function(object,
     
     if(type[i] == "g") {
       
-      # if(i==12) browser()
-      
       # Access node model
       model_i <- object$nodemodels[[i]]$model
       
@@ -69,7 +67,7 @@ condition <- function(object,
                              object = object, 
                              model_i = model_i)
       
-    
+      
       # Condition / fix values
       model_i_new <- condition_core(i = i,
                                     model_i = model_i, 
@@ -80,6 +78,32 @@ condition <- function(object,
       
       
     } # end if: response gaussian?
+    
+    
+    
+    # ----- Case III: Poisson responses -----
+    # (actually exactly the same handling as "g" above)
+    
+    if(type[i] == "p") {
+      
+      # Retrieve nodemodel i
+      model_i <- object$nodemodels[[i]]$model
+      n_resp <- length(model_i)
+      
+      # Apply tau-thresholding & AND rule
+      model_i <- applyTauAND(i = i,
+                             object = object, 
+                             model_i = model_i)
+      
+      # Condition / fix values
+      model_i_new <- condition_core(i = i,
+                                    model_i = model_i, 
+                                    m_fixed_values = m_fixed_values)
+      
+      # Overwrite model object    
+      object_new$nodemodels[[i]]$model <- model_i_new
+      
+    } # end if: response Poisson?
     
     
     
@@ -98,7 +122,7 @@ condition <- function(object,
         
         # Apply tau-thresholding & AND rule
         model_i_cat <- applyTauAND(i = i,
-                                   object = object, 
+                                   object = object,
                                    model_i = model_i_cat)
         
         # Condition / fix values
@@ -113,16 +137,14 @@ condition <- function(object,
       
     } # end if: response categorical?
     
-    
   } # end for: response variables
   
-  
-  # browser()
-  
-  
+
   # ---------- Aggregation across regressions -----------
   
-  object_new2 <- Reg2Graph(object_new)
+  
+  
+  object_new2 <- Reg2Graph(object_new, thresholding=FALSE)
   
   
   # ---------- Prepare output & return -----------

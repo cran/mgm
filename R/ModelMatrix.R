@@ -29,7 +29,8 @@ ModelMatrix <- function(data,  # matrix
   p <- ncol(data) # note that we have only the predictors here!!
   n <- nrow(data)
   
-  mSpec <- ifelse(class(moderators) %in% c("integer", "numeric"), "vector", "matrix")
+  # mSpec <- ifelse(class(moderators) %in% c("integer", "numeric"), "vector", "matrix")
+  mSpec <- ifelse(any(class(moderators) %in% c("integer","numeric")), "vector", "matrix")
   
   # ---------- Input Checks ----------
   
@@ -109,8 +110,6 @@ ModelMatrix <- function(data,  # matrix
       
       if(mSpec == "vector") {
         
-        browser()
-        
         if(v %in% moderators) {
           
           l_interactions[[2]] <- combn(1:p, 2, simplify = FALSE) # all combinations of the remaining (here denoted by 1:p) variables
@@ -171,8 +170,6 @@ ModelMatrix <- function(data,  # matrix
     
     # Loop over order of interactions;
     for(ord in 2:d) {
-      
-      # if(ord==3) browser()
       
       n_terms <- length(l_interactions[[ord]])
       
@@ -238,8 +235,6 @@ ModelMatrix <- function(data,  # matrix
   } # end if: d>1
   
   # Combine with d=1 size neighborhoods (singletons)
-  
-  # browser()
   
   if(d > 1) {
     X <- cbind(Xd1, all_HOI_terms)
