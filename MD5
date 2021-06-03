@@ -1,6 +1,6 @@
-b6d4427303b20f1b7e2e9c8ab39902e5 *DESCRIPTION
-68aab18a9b47ac30a7c38818b5e0f946 *NAMESPACE
-127724e33af33db5aa0eecf3aaf52d93 *NEWS
+e51c032628cd711afdef59de781d8e1f *DESCRIPTION
+2e0443a5c678d57c8d1ba2184d820d46 *NAMESPACE
+dcc073ee9c34741cc2f3111ef078b015 *NEWS
 60beadcecd50356540eb2d5f2131dca7 *R/DrawFG.R
 1f4fe28c580b12e3f67dd1507458af4e *R/FactorGraph.R
 ec6378fd900a87b3dbe0b2c2c53fb401 *R/FlagSymmetric.R
@@ -59,7 +59,7 @@ f9db6e6c8fe45597ecc2c85fc88b3e58 *man/FactorGraph.Rd
 40f19586346a8cf78226601511cc7d95 *man/datasets.Rd
 8461dfda0e8b7639b01751918def912d *man/mgm-internal.Rd
 fef0554b23e5ab4287809aeb28fa7099 *man/mgm-package.Rd
-997eb0af96189a1643e6e0298fecc0ce *man/mgm.Rd
+91a27f00efe071bbb254d0a195961157 *man/mgm.Rd
 c341366c8bcca0b49fe62e79c41640b2 *man/mgmsampler.Rd
 c808f972775276a03dbb05b4e1cde3fa *man/mvar.Rd
 65f6921ea4025b1887792444ac637671 *man/mvarsampler.Rd
@@ -73,3 +73,7 @@ c808f972775276a03dbb05b4e1cde3fa *man/mvar.Rd
 8ab1c6b9f79bb3feee4e54ea4a80b7fc *man/tvmgmsampler.Rd
 dce4b27e2f730d445082c88f22a3ac37 *man/tvmvar.Rd
 86ad0d48f1b1bd2a3275127713388807 *man/tvmvarsampler.Rd
+a0c9f021417b1be058079baf052f1901 *tests/testthat.R
+60878ea46a1d47eb9a8c2f814a799921 *tests/testthat/Rplots.pdf
+f6cc7624e7101183a837697d0145386f *tests/testthat/test_MNM.R
+436cbce21e410f738040a48e0eb04f4f *tests/testthat/test_mgm.R
