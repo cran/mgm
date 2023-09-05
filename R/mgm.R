@@ -39,7 +39,7 @@ mgm <- function(data,         # n x p data matrix
   
   p <- ncol(data)
   n <- nrow(data)
-  data <- as.matrix(data)
+  # data <- as.matrix(data) # Since version 1.2-13 I now require that the input is a matrix (see below input checks)
   
   # Give Names to variables (Needed to use formula to construct design matrix and to give informative error messages)
   colnames(data)[1:p] <- paste("V", 1:p, '.', sep = "")
@@ -94,10 +94,11 @@ mgm <- function(data,         # n x p data matrix
   
   # ----- Basic Checks I -----
   
-  # Checks on data
-  if(nrow(data) < 2) ('The data matrix has to have at least 2 rows.')
-  if(any(!(apply(data, 2, class) %in% c('numeric', 'integer')))) stop('Only integer and numeric values permitted.')
+  # Checks on data input
   if(missing(data)) stop('No data provided.')
+  if(nrow(data) < 2) ('The data matrix needs to have at least 2 rows.')
+  if(!("matrix" %in% class(data))) stop("Please provide the data in a matrix object (e.g., no data.frame object)")
+  if(any(!(apply(data, 2, class) %in% c('numeric', 'integer')))) stop('Only integer and numeric values permitted.')
   if(any(!is.finite(as.matrix(data)))) stop('No infinite values permitted.')
   if(any(is.na(data))) stop('No missing values permitted.')
   
@@ -284,6 +285,8 @@ mgm <- function(data,         # n x p data matrix
   
   l_mods_ind <- list() # collect moderator terms for later output-processing
   
+  # browser()
+  
   for(v in 1:p) {
     
     # ----- Construct Design Matrix -----
@@ -338,7 +341,7 @@ mgm <- function(data,         # n x p data matrix
     
     # alpha Section via CV
     
-    if(alphaSel == 'CV') {
+    if(alphaSel == "CV") {
       
       l_alphaModels <- list() # Storage
       ind <- sample(1:alphaFolds, size = n, replace = TRUE) # fold-indicators, use same for each alpha
