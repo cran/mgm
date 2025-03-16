@@ -2,6 +2,7 @@
 mgm <- function(data,         # n x p data matrix
                 type,         # p vector indicating the type of each variable
                 level,        # p vector indivating the levels of each variable
+                regularize,   # New argument Dec 2024: allow to switch off regularization
                 lambdaSeq,    # sequence of considered lambda values (default to glmnet default)
                 lambdaSel,    # way of selecting lambda: CV vs. EBIC
                 lambdaFolds,  # number of folds if lambdaSel = 'CV'
@@ -50,6 +51,7 @@ mgm <- function(data,         # n x p data matrix
   
   # ----- Fill in Defaults -----
   
+  if(missing(regularize)) regularize <- TRUE
   if(missing(lambdaSeq)) lambdaSeq <- NULL
   if(missing(lambdaSel)) lambdaSel <- 'CV'
   if(missing(lambdaFolds)) lambdaFolds <- 10
@@ -66,6 +68,14 @@ mgm <- function(data,         # n x p data matrix
   if(missing(method)) method <- 'glm'
   if(missing(binarySign)) {
     if(!is.null(args$binary.sign)) binarySign <- args$binary.sign else binarySign <- FALSE
+  }
+  
+  # Switching off Regularization
+  if(regularize==FALSE) {
+    # This effectively switches off regularization:
+    lambdaSel <- 'EBIC'
+    lambdaSeq <- 0
+    threshold <- 'none' # Also switch off additional thresholding
   }
   
   if(!is.null(args$binary.sign)) {
@@ -114,7 +124,11 @@ mgm <- function(data,         # n x p data matrix
   } # end if: moderators?
   
   
+  # ----- Checking glmnet minimum Variance requirements -----
   
+  glmnetRequirements(data = data,
+                     type = type,
+                     weights = weights)
   
   # ----- Compute Auxilliary Variables II -----
   
@@ -169,17 +183,10 @@ mgm <- function(data,         # n x p data matrix
     for(i in 1:nPois) v_PoisCheck[i] <- sum(data[, ind_Pois[i]] != round(data[, ind_Pois[i]])) > 0
     if(sum(v_PoisCheck) > 0) stop('Only integers permitted for Poisson variables.')
   }
+
   
   
-  # ----- Checking glmnet minimum Variance requirements -----
-  
-  glmnetRequirements(data = data,
-                     type = type,
-                     weights = weights)
-  
-  
-  
-  # ----- Binary Sign => values have to be in {0,1} -----
+  # ----- If BinarySign=TRUE => binary values have to be in {0,1} -----
   
   # compute anyway, because used later for sign extraction
   
@@ -231,6 +238,7 @@ mgm <- function(data,         # n x p data matrix
                       'type' = type,
                       'level' = level,
                       "levelNames" = NULL,
+                      'regularize' = regularize,
                       'lambdaSeq' = lambdaSeq,
                       'lambdaSel' = lambdaSel,
                       'lambdaFolds' = lambdaFolds,

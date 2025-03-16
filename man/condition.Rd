@@ -20,7 +20,7 @@ A list, where the entry name indicates the column number of the variable that sh
 }
 }
 \value{
-The function returns an mgm object that is conditional on the provided values. The new mgm object can again be used as input in \code{predict()}, \code{print()}, \code{showInteraction()}, etc.. 
+The function returns an mgm object that is conditional on the provided values. The new mgm object can again be used as input in \code{predict()}, \code{print()}, \code{showInteraction()}, etc.. Note that \code{mgm()} by default standardizes variables to mean=0, SD=1. Therefore, also the values one conditions on should be chosen on the scaled version of the variable to avoid extrapolating out of the dataset.
 }
 
 \details{
@@ -62,7 +62,7 @@ Sigma_b <- diag(2)
 Sigma_b[1, 2] <- Sigma_b[2, 1] <- 0
 Xb <- mvrnorm(n = n, mu = rep(0, 2), Sigma = Sigma_b)
 
-data <- as.data.frame(cbind(rbind(Xa, Xb), c(rep(0, n), rep(1, n))))
+data <- cbind(rbind(Xa, Xb), c(rep(0, n), rep(1, n)))
 colnames(data) <- c("x1", "x2", "x3")
 
 
